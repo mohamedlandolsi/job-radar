@@ -1,0 +1,1602 @@
+{
+  "name": "Job Radar",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        -384
+      ],
+      "id": "fb190554-2a2f-4ddf-94f9-14f48a83ecb2",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "https://remotive.com/api/remote-jobs?limit=50",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        -544
+      ],
+      "id": "3c5bc3fa-5440-4c26-b3a7-bba42725bd98",
+      "name": "Remotive",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://remoteok.com/api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "JobRadar/1.0 (mohamedlandolsi300@gmail.com)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        -736
+      ],
+      "id": "33eed51f-b2ac-4755-8066-9f773d656631",
+      "name": "RemoteOK",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://www.arbeitnow.com/api/job-board-api",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        -352
+      ],
+      "id": "c85340ed-1dd7-4b84-bbcf-57652bfa661b",
+      "name": "Arbeitnow",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobs = $input.first().json.data || [];\n\nreturn jobs.map(job => {\n  const cleanDesc = (job.description || '').replace(/<[^>]*>?/gm, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000);\n  return {\n    json: {\n      source: 'arbeitnow',\n      id: job.slug,\n      title: job.title,\n      company: job.company_name,\n      url: job.url,\n      location_raw: (job.locations || []).join(', '),\n      work_policy: job.remote ? 'remote' : 'onsite',\n      posted_date: new Date(job.created_at * 1000).toISOString(), // Convert timestamp\n      description_text: cleanDesc,\n      visa_sponsorship: job.visa_sponsorship === true\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -352
+      ],
+      "id": "864e6f4c-2b04-46d8-8b05-9dc4976344b4",
+      "name": "Arbeitnow Mapper"
+    },
+    {
+      "parameters": {
+        "numberInputs": 10
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        992,
+        -320
+      ],
+      "id": "cb59f231-1088-4279-8d4b-7d8ad8533df9",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Hard veto: drop legal disclaimer, missing fields, string \"undefined\", and whitespace/empty descriptions\nconst jobs = items.filter(item => {\n  const j = item.json;\n  if (!j || !j.position || !j.company) return false;\n  \n  // Guard 1: reject literal string \"undefined\" and whitespace-only IDs\n  const id = String(j.id || '').trim();\n  if (!id || id.toLowerCase() === 'undefined') return false;\n  \n  // Guard 2: reject whitespace-only or HTML-comment-only descriptions (before regex cleaning)\n  const desc = String(j.description || '').trim();\n  if (desc.length < 50) return false;\n  \n  return true;\n});\n\nreturn jobs.map(job => {\n  const cleanDesc = (job.description || '').replace(/<[^>]*>?/gm, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000);\n  let finalUrl = job.url;\n  if (finalUrl && !finalUrl.startsWith('http')) finalUrl = 'https://remoteok.com' + finalUrl;\n\n  return {\n    json: {\n      source: 'remoteok',\n      id: String(job.id).trim(),\n      title: job.position,\n      company: job.company,\n      url: finalUrl,\n      location_raw: job.location || 'Worldwide',\n      work_policy: 'remote',\n      posted_date: job.date,\n      description_text: cleanDesc,\n      visa_sponsorship: false,\n      heuristic_score: 0\n    }\n  };\n}).filter(item => item.json.description_text.length > 100);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -736
+      ],
+      "id": "a9d1b6e5-9f19-4942-9ba9-8d9436b3ff41",
+      "name": "RemoteOK Mapper1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobs = $input.first().json.jobs || [];\nconst htmlRegex = /<[^>]*>?/gm; // Regex to strip HTML tags\n\nreturn jobs.map(job => {\n  const cleanDesc = (job.description || '').replace(htmlRegex, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000);\n  return {\n    json: {\n      source: 'remotive',\n      id: String(job.id),\n      title: job.title,\n      company: job.company_name,\n      url: job.url,\n      location_raw: job.candidate_required_location || 'Worldwide',\n      work_policy: 'remote', \n      posted_date: job.publication_date,\n      description_text: cleanDesc,\n      visa_sponsorship: false \n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -544
+      ],
+      "id": "afbd5eb4-991f-4b01-be6f-b5b25ae933b9",
+      "name": "Remotive Mapper"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1239869599,
+          "mode": "list",
+          "cachedResultName": "seen",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit#gid=1239869599"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1504,
+        -208
+      ],
+      "id": "79f9a63b-ebbd-4cfa-8804-23cc14f0d3f6",
+      "name": "Fetch Seen URLs",
+      "executeOnce": true,
+      "credentials": {
+        "googleApi": {
+          "id": "2ZJYUf6E0tvEFU8D",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const CFG = $('Load Config').first().json.config;\nconst seenUrls = new Set($input.all().map(i => i.json.url).filter(Boolean));\nconst cutoff = Date.now() - CFG.window_days * 86400000;\nlet seniorRe, juniorRe;\ntry { seniorRe = new RegExp(CFG.title_senior, 'i'); } catch (e) { seniorRe = /$^/; }\ntry { juniorRe = new RegExp(CFG.title_junior, 'i'); } catch (e) { juniorRe = /$^/; }\nreturn $('Merge').all().filter(item => {\n  const j = item.json || {};\n  if (!j.url || !j.source) return false;\n  if (seenUrls.has(j.url)) return false;\n  const posted = new Date(j.posted_date).getTime();\n  if (!posted || posted < cutoff) return false;\n  if (CFG.require_remote && j.work_policy !== 'remote') return false;\n  if (CFG.arbeitnow_visa_only && j.source === 'arbeitnow' && !j.visa_sponsorship) return false;\n  if (seniorRe.test(j.title || '') && !juniorRe.test(j.title || '')) return false;\n  const desc = (j.description_text || '').toLowerCase();\n  return !CFG.banned_phrases.some(p => desc.includes(p));\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        -208
+      ],
+      "id": "b8e03ead-e495-4e9a-bd43-4b01a00d8ff6",
+      "name": "Dedupe & Hard Filters"
+    },
+    {
+      "parameters": {
+        "jsCode": "const CFG = $('Load Config').first().json.config;\nconst esc = s => s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst scored = $input.all().map(job => {\n  const desc = (job.json.description_text || '').toLowerCase();\n  let score = 0;\n  for (const skill of CFG.skills) { const m = desc.match(new RegExp(esc(skill), 'g')); if (m) score += m.length; }\n  return { ...job, json: { ...job.json, heuristic_score: score } };\n});\nscored.sort((a, b) => b.json.heuristic_score - a.json.heuristic_score);\nreturn scored.slice(0, CFG.slice_cap);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -208
+      ],
+      "id": "a0593acc-bf3e-44a3-a446-445b23faf46e",
+      "name": "Batch Slice"
+    },
+    {
+      "parameters": {
+        "jsCode": "const PROFILE = {\n  seniority: 'entry/junior (fresh graduate, 6-month production internship)',\n  target_roles: ['Automation Engineer','Integration Engineer','GTM Engineer','RevOps Engineer','Technical Business Analyst','Backend Engineer (integrations)'],\n  skills: ['Python','FastAPI','SQL','PostgreSQL','Supabase','REST API design','webhooks','n8n','Apify','LLM/RAG pipelines','BPMN','requirements engineering','Git','Docker'],\n  languages: { english: 'professional', arabic: 'native', french: 'reading only' },\n  constraints: { work_policy: 'remote only', visa: 'needs sponsorship or contractor-friendly', regions: ['Europe','Gulf','remote-anywhere'] }\n};\n\nconst SYSTEM = 'You are a strict job-fit analyst. Evaluate ONE job description against ONE candidate profile. Return ONLY valid JSON with exactly this schema: {\"match_score\": number 0-100, \"why_match\": string, \"red_flags\": [string], \"confidence\": number 0-100, \"extracted\": {\"seniority\": string, \"work_policy\": \"remote|hybrid|onsite|unknown\", \"location_constraint\": string, \"languages_required\": [string], \"visa_mention\": boolean, \"visa_confidence\": number 0-100, \"contract_friendly\": boolean, \"company_size_hint\": string, \"salary\": string}}';\n\nreturn $input.all().filter(job => {\n  const desc = (job.json.description_text || '').trim();\n  // If description is less than 50 chars, it's garbage. Drop it before LLM burn.\n  return desc.length >= 50; \n}).map(job => ({\n   // ... existing prompt building code ....map(job => ({\n  json: {\n    system: SYSTEM,\n    prompt: `Candidate profile: ${JSON.stringify(PROFILE)}\\n\\nJob title: ${job.json.title}\\nCompany: ${job.json.company}\\nLocation: ${job.json.location_raw}\\nDescription: ${(job.json.description_text || '').slice(0, 3500)}\\n\\nEvaluate fit and extract attributes. JSON only.`,\n    job: job.json\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        -208
+      ],
+      "id": "e047479d-e6cd-4999-a544-6c1edefb5bab",
+      "name": "Build Prompts"
+    },
+    {
+      "parameters": {
+        "jsCode": "// LLM Router v6 — groq-gptoss (proven) → gemini-2.5-flash → gemini-3.5-flash-lite. Cerebras parked (402).\nconst GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';\nconst GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';\n\nconst CHAIN = [\n  { name: 'groq-gptoss',     url: GROQ_URL,   key: () => $env.GROQ_API_KEY,  model: 'openai/gpt-oss-120b' },\n  { name: 'gemini-3.5-lite', url: GEMINI_URL, key: () => $env.GEMINI_API_KEY, model: 'gemini-3.5-flash-lite', temperature: 0.2 },\n  { name: 'gemini-2.5-flash', url: GEMINI_URL, key: () => $env.GEMINI_API_KEY, model: 'gemini-2.5-flash', temperature: 0.2 }\n];\n\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\nfunction parseJSON(s) {\n  try { return JSON.parse(s); } catch (e) {\n    const m = (s || '').match(/\\{[\\s\\S]*\\}/);\n    try { return m ? JSON.parse(m[0]) : null; } catch (e2) { return null; }\n  }\n}\nconst callProvider = async (p, system, prompt) => {\n  const body = { model: p.model, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };\n  if (typeof p.temperature === 'number') body.temperature = p.temperature;\n  const data = await this.helpers.httpRequest({\n    method: 'POST', url: p.url,\n    headers: { 'Authorization': 'Bearer ' + p.key(), 'Content-Type': 'application/json' },\n    body, json: true\n  });\n  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));\n  const parsed = parseJSON(data.choices?.[0]?.message?.content || '');\n  if (!parsed) throw new Error('Unparseable JSON');\n  return parsed;\n};\nconst is429 = e => /429|rate|resource has been exhausted/i.test(String(e.message || e));\n\nconst items = $input.all();\nconst results = [];\nfor (let i = 0; i < items.length; i++) {\n  const { system, prompt, job } = items[i].json;\n  let llm = null, provider = 'none';\n  const errors = {};\n  for (const p of CHAIN) {\n    for (let attempt = 0; attempt < 2; attempt++) {\n      try { llm = await callProvider(p, system, prompt); provider = p.name; break; }\n      catch (e) {\n        errors[p.name] = String(e.message || e).slice(0, 200);\n        if (is429(e) && attempt === 0) { await sleep(25000); continue; }\n        break;\n      }\n    }\n    if (llm) break;\n  }\n  results.push({ json: { job, provider, llm, errors } });\n  if (i < items.length - 1) await sleep(8000);\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        -208
+      ],
+      "id": "fa340096-31db-4a2d-ac7d-4754c23070ac",
+      "name": "LLM Router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const CFG = $('Load Config').first().json.config;\nconst W = Object.assign({ match: 0.40, filterFit: 0.25, feasibility: 0.20, recency: 0.15 }, CFG.weights);\nconst parseDate = v => (typeof v === 'number' && v < 1e12) ? new Date(v * 1000) : new Date(v);\nconst out = [];\nfor (const item of $input.all()) {\n  const { job, provider, llm } = item.json;\n  if (!llm) continue;\n  const ex = llm.extracted || {};\n  const seniority = (ex.seniority || 'unknown').toLowerCase();\n  const workPolicy = (ex.work_policy || 'unknown').toLowerCase();\n  const loc = (ex.location_constraint || '').toLowerCase();\n  const langs = (ex.languages_required || []).map(l => l.toLowerCase());\n  const visa = !!ex.visa_mention, visaConf = Number(ex.visa_confidence || 0), contract = !!ex.contract_friendly;\n\n  if (CFG.strict && !CFG.seniority_ok.includes(seniority)) continue;\n  if (workPolicy !== 'remote' && workPolicy !== 'unknown') continue;\n  if (langs.some(l => CFG.lang_block.some(b => l.includes(b)))) continue;\n  if (CFG.loc_black.some(b => loc.includes(b)) && !CFG.loc_wide.some(k => loc.includes(k))) continue;\n\n  const match = Math.max(0, Math.min(100, Number(llm.match_score) || 0));\n  const wide = CFG.loc_wide.some(k => loc.includes(k));\n  const filterFit = ((CFG.junior_bonus.includes(seniority) ? 1 : 0) + (workPolicy === 'remote' ? 1 : 0) + (wide ? 1 : 0) + (visa || contract ? 1 : 0)) / 4 * 100;\n  const feasibility = visa ? visaConf : (contract ? 65 : (wide ? 55 : 25));\n  const days = (Date.now() - parseDate(job.posted_date).getTime()) / 86400000;\n  const recency = days <= 2 ? 100 : days <= 7 ? 80 : days <= 14 ? 60 : 40;\n  const final = Math.round(W.match * match + W.filterFit * filterFit + W.feasibility * feasibility + W.recency * recency);\n  if (final < CFG.min_score) continue;\n\n  out.push({ json: {\n    run_date: new Date().toISOString(), source: job.source, title: job.title, company: job.company,\n    url: job.url, location_raw: job.location_raw, work_policy: job.work_policy, posted_date: job.posted_date,\n    final_score: final, priority: final >= CFG.priority_score, why_match: llm.why_match || '',\n    red_flags: (llm.red_flags || []).join('; '), seniority, languages_required: langs.join(', '),\n    visa_mention: visa, visa_confidence: visaConf, contract_friendly: contract,\n    company_size_hint: ex.company_size_hint || 'unknown', salary: ex.salary || 'not listed',\n    confidence: Number(llm.confidence || 0), provider, status: 'new'\n  }});\n}\nif (out.length === 0) return [{ json: { __empty: true } }];\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2624,
+        -208
+      ],
+      "id": "271b7b08-51f2-4d92-83f9-46b25d3ec00a",
+      "name": "Gate & Score"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "matches",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "run_date",
+              "displayName": "run_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "location_raw",
+              "displayName": "location_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "work_policy",
+              "displayName": "work_policy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "posted_date",
+              "displayName": "posted_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "final_score",
+              "displayName": "final_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "why_match",
+              "displayName": "why_match",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "red_flags",
+              "displayName": "red_flags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "seniority",
+              "displayName": "seniority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "languages_required",
+              "displayName": "languages_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "visa_mention",
+              "displayName": "visa_mention",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "visa_confidence",
+              "displayName": "visa_confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contract_friendly",
+              "displayName": "contract_friendly",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_size_hint",
+              "displayName": "company_size_hint",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "salary",
+              "displayName": "salary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "provider",
+              "displayName": "provider",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3072,
+        -304
+      ],
+      "id": "78add8f6-296b-43bf-b919-c59cb794daf8",
+      "name": "Append Matches",
+      "credentials": {
+        "googleApi": {
+          "id": "2ZJYUf6E0tvEFU8D",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('LLM Router').all()\n  .filter(i => i.json.provider !== 'none' && i.json.job && i.json.job.url)\n  .map(i => ({ json: { url: i.json.job.url } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2624,
+        48
+      ],
+      "id": "a3ca1b82-6efc-4259-9393-696159aa9723",
+      "name": "Seen Rows"
+    },
+    {
+      "parameters": {
+        "jsCode": "const router = $('LLM Router').all().map(i => i.json);\nconst providers = router.map(r => r.provider);\nconst failures = providers.filter(p => p === 'none').length;\n\n// Router error messages persisted to the sheet (diagnosis without opening the node)\nconst errors_sample = router\n  .filter(r => r.errors && Object.keys(r.errors).length)\n  .slice(0, 3)\n  .map(r => JSON.stringify(r.errors).slice(0, 200))\n  .join(' | ');\n\n// Source-level failure markers from try/catch wrappers\nconst source_errors = $('Merge').all().filter(i => i.json.__error).length;\n\nconst validMatches = $input.all().filter(i => i.json.url); // drops __empty sentinel\n\nreturn [{ json: {\n  run_at: new Date().toISOString(),\n  merged: $('Merge').all().length,\n  survivors: $('Batch Slice').all().length,\n  llm_calls: providers.length - failures,\n  providers: providers.join(','),\n  failures,\n  matches_written: validMatches.length,\n  source_errors,\n  errors_sample,\n  config_rev: $('Load Config').first().json.config.rev\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        -112
+      ],
+      "id": "cbc8e656-d097-4930-b2b5-c7d2d04fbfe3",
+      "name": "Run Stats"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 804256075,
+          "mode": "list",
+          "cachedResultName": "ops",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit#gid=804256075"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "run_at",
+              "displayName": "run_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "merged",
+              "displayName": "merged",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "survivors",
+              "displayName": "survivors",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "llm_calls",
+              "displayName": "llm_calls",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "providers",
+              "displayName": "providers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failures",
+              "displayName": "failures",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "matches_written",
+              "displayName": "matches_written",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3072,
+        -112
+      ],
+      "id": "5f79f765-e5b8-4f65-9b65-7e1f858b24d6",
+      "name": "Append Ops",
+      "credentials": {
+        "googleApi": {
+          "id": "2ZJYUf6E0tvEFU8D",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1239869599,
+          "mode": "list",
+          "cachedResultName": "seen",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit#gid=1239869599"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "url"
+          ],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2848,
+        48
+      ],
+      "id": "49b1c99f-4a79-4c09-b66f-c6bdbda4f049",
+      "name": "Append Seen",
+      "credentials": {
+        "googleApi": {
+          "id": "2ZJYUf6E0tvEFU8D",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4b0ffcbd-f5f7-40fa-82e3-d89d988c7adc",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        2848,
+        -304
+      ],
+      "id": "08b6148c-d788-436c-86a6-1f215b9012a5",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "url": "https://weworkremotely.com/categories/remote-programming-jobs.rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        -160
+      ],
+      "id": "a5432543-d449-42a4-bb44-7607ba345853",
+      "name": "WeWorkRemotely (WWR)",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const r = item.json;\n  return { json: {\n    source: 'weworkremotely',\n    id: r.guid || r.link,\n    title: r.title,\n    company: (r.creator || '').trim() || 'unknown',\n    url: r.link,\n    location_raw: 'Worldwide',\n    work_policy: 'remote',\n    posted_date: r.isoDate || r.pubDate || new Date().toISOString(),\n    description_text: (r.content || r.contentSnippet || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n    visa_sponsorship: false,\n    heuristic_score: 0\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -160
+      ],
+      "id": "94713163-e47a-4949-a259-95876c169dbf",
+      "name": "WWR Mapper"
+    },
+    {
+      "parameters": {
+        "jsCode": "const WEBHOOK = $env.DISCORD_WEBHOOK_URL;\nif (!WEBHOOK) throw new Error('DISCORD_WEBHOOK_URL missing from n8n environment variables');\n\nconst MAXE = Math.min(10, Number($('Load Config').first().json.config.max_embeds || 10)); // Discord hard cap 10\nconst stats = $('Run Stats').first().json;\nconst matches = $('Gate & Score').all()\n  .map(i => i.json).filter(j => j.url)              // drop __empty sentinel\n  .sort((a, b) => b.final_score - a.final_score);\n\nconst trunc = (s, n) => { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; };\n\nlet payload;\nif (matches.length === 0) {\n  payload = { username: 'Job Radar', embeds: [{\n    title: '📡 Daily scan — no new matches',\n    color: 8421504,                                  // grey heartbeat\n    description: `Merged **${stats.merged}** → survivors **${stats.survivors}** → LLM **${stats.llm_calls}** (${stats.providers}) → matches **0** · failures ${stats.failures} · source errors ${stats.source_errors || 0}`,\n    footer: { text: 'run ' + stats.run_at }\n  }]};\n} else {\n  const top = matches.slice(0, MAXE);\n  payload = { username: 'Job Radar', embeds: top.map(m => ({\n    title: trunc(m.title, 80) + ' — ' + trunc(m.company, 40),\n    url: m.url,\n    color: m.final_score >= 80 ? 65280 : 16763904,   // green priority / yellow match\n    fields: [\n      { name: 'Score', value: m.final_score + (m.priority ? ' ⭐' : ''), inline: true },\n      { name: 'Location', value: trunc(m.location_raw, 50), inline: true },\n      { name: 'Visa/contract', value: ((m.visa_mention ? 'visa ' + m.visa_confidence + '% ' : '') + (m.contract_friendly ? 'contract-ok' : '')) || 'none', inline: true },\n      { name: 'Why', value: trunc(m.why_match, 200) },\n      { name: 'Red flags', value: trunc(m.red_flags, 120) || 'none' }\n    ],\n    footer: { text: `${m.source} · ${m.provider} · conf ${m.confidence}` }\n  }))};\n  if (matches.length > MAXE) payload.embeds[payload.embeds.length - 1].footer = { text: `+${matches.length - MAXE} more in the sheet` };\n}\n\nconst res = await this.helpers.httpRequest({ method: 'POST', url: WEBHOOK, body: payload, json: true, returnFullResponse: true });\nif (!(res.statusCode >= 200 && res.statusCode < 300)) throw new Error('Discord HTTP ' + res.statusCode);\nreturn [{ json: { discord: 'sent', embeds: payload.embeds.length, matches: matches.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3088,
+        80
+      ],
+      "id": "96cd15d9-e1e7-4594-94ef-9b9527714f96",
+      "name": "Discord Digest"
+    },
+    {
+      "parameters": {
+        "jsCode": "const SOURCE = 'n8n-community';\nreturn $input.all().map(item => {\n  const r = item.json;\n  const title = (r.title || '').trim();\nif (/\\[for hire\\]|available for hire|available for projects|open for projects|looking for clients/i.test(title)) return null; // freelancer pitches, not jobs\n  const text = (title + ' ' + (r.content || '')).toLowerCase();\n  return { json: {\n    source: SOURCE, id: r.guid || r.link, title, company: 'unknown', url: r.link,\n    location_raw: 'Worldwide',\n    work_policy: /remote|anywhere|worldwide|emea|europe|utc/i.test(text) ? 'remote' : 'unknown',\n    posted_date: r.isoDate || r.pubDate || new Date().toISOString(),\n    description_text: (r.content || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n    visa_sponsorship: false, heuristic_score: 0\n  }};\n}).filter(Boolean);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        32
+      ],
+      "id": "fbe608be-9777-4aa4-89d6-d800f22caff9",
+      "name": "n8n Community Jobs Mapper"
+    },
+    {
+      "parameters": {
+        "url": "https://community.n8n.io/c/jobs/13.rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        32
+      ],
+      "id": "51bf1726-469a-4e00-96d5-54a0e4897a92",
+      "name": "n8n Community Jobs",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://jobicy.com/api/v2/remote-jobs?count=100",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        336
+      ],
+      "id": "9a45571c-955b-4b71-bad1-4dd936f3de22",
+      "name": "Jobicy",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobs = $input.first().json.jobs || [];\nreturn jobs.map(j => ({ json: {\n  source: 'jobicy', id: String(j.id), title: j.jobTitle, company: j.companyName || 'unknown',\n  url: j.url, location_raw: j.jobGeo || 'Worldwide', work_policy: 'remote',\n  posted_date: j.pubDate || new Date().toISOString(),\n  description_text: (j.jobDescription || j.jobExcerpt || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n  visa_sponsorship: false, heuristic_score: 0\n}})).filter(x => !/^(americas|north america|usa|us|canada|apac|asia|australia|latam|latin america)$/i.test(x.json.location_raw));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        336
+      ],
+      "id": "d21a023c-3205-4fd0-a84c-006548c9b4f9",
+      "name": "Jobicy Mapper"
+    },
+    {
+      "parameters": {
+        "url": "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        544
+      ],
+      "id": "041daad2-9687-4d96-8db4-a661b9059d90",
+      "name": "WWR Marketing",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const r = item.json;\n  return { json: {\n    source: 'weworkremotely-mkt',\n    id: r.guid || r.link,\n    title: r.title,\n    company: (r.creator || '').trim() || 'unknown',\n    url: r.link,\n    location_raw: 'Worldwide',\n    work_policy: 'remote',\n    posted_date: r.isoDate || r.pubDate || new Date().toISOString(),\n    description_text: (r.content || r.contentSnippet || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n    visa_sponsorship: false,\n    heuristic_score: 0\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        544
+      ],
+      "id": "ca4110e7-46c5-4b9e-a0a7-d4a304c6140b",
+      "name": "WWR Marketing Mapper"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monthly thread; each top-level comment = one job post. Empty at month start = safe [].\nconst SOURCE = 'hn-whoishiring';\ntry {\n  const label = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });\n  const search = await this.helpers.httpRequest({ method: 'GET', json: true,\n    url: 'https://hn.algolia.com/api/v1/search?tags=story&query=' + encodeURIComponent('Ask HN: Who is hiring? ' + label) });\n  const hits = search.hits || [];\n  const story = hits.find(h => (h.title || '').includes(label)) || hits[0]; // prefer exact-month thread\n  if (!story) return [];\n  const thread = await this.helpers.httpRequest({ method: 'GET', json: true,\n    url: 'https://hn.algolia.com/api/v1/items/' + story.objectID });\n  return (thread.children || []).filter(c => c.text).slice(0, 40).map(c => {\n    const clean = c.text.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\n    const href = (c.text.match(/href=\"([^\"]+)\"/) || [])[1];\n    return { json: {\n      source: SOURCE, id: String(c.id), title: clean.slice(0, 120), company: 'unknown',\n      url: href || ('https://news.ycombinator.com/item?id=' + c.id),\n      location_raw: 'Worldwide',\n      work_policy: /remote|anywhere|worldwide/i.test(clean) ? 'remote' : 'unknown',\n      posted_date: c.created_at || story.created_at || new Date().toISOString(),\n      description_text: clean.slice(0, 6000), visa_sponsorship: false, heuristic_score: 0\n    }};\n  });\n} catch (e) {\n  // Never kill the run: marker item (no url) is dropped by Dedupe but counted in ops\n  return [{ json: { source: SOURCE, id: 'error', title: '', company: '', url: '',\n    location_raw: '', work_policy: 'unknown', posted_date: new Date().toISOString(),\n    description_text: '', visa_sponsorship: false, heuristic_score: 0,\n    __error: SOURCE + ': ' + String(e.message || e) } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        192
+      ],
+      "id": "cc796b56-5bc3-4add-97bc-f24fc60ec690",
+      "name": "HN Who is Hiring"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Himalayas — free public JSON API, no key. Queries come from the config tab.\nconst SOURCE = 'himalayas';\nlet QUERIES = [];\ntry {\n  const cfgQ = $('Load Config').first().json.config.himalayas_queries;\n  QUERIES = Array.isArray(cfgQ) ? cfgQ.map(q => (typeof q === 'string' ? q : q.q)).filter(Boolean) : [];\n} catch (e) { QUERIES = []; }\nif (!QUERIES.length) QUERIES = ['automation engineer', 'integration engineer', 'revenue operations'];\n\nconst seenGuids = new Set();\nconst out = [];\ntry {\n  for (const q of QUERIES) {\n    const res = await this.helpers.httpRequest({ method: 'GET', json: true,\n      url: 'https://himalayas.app/jobs/api/search?q=' + encodeURIComponent(q) + '&sort=recent&page=1' });\n    for (const j of (res.jobs || [])) {\n      if (seenGuids.has(j.guid)) continue;\n      seenGuids.add(j.guid);\n      const loc = (j.locationRestrictions || []).map(l => l.name).join(', ');\n      const posted = j.pubDate ? (j.pubDate > 1e12 ? new Date(j.pubDate) : new Date(j.pubDate * 1000)) : new Date();\n      out.push({ json: {\n        source: SOURCE, id: j.guid, title: j.title, company: j.companyName || 'unknown',\n        url: j.applicationLink || ('https://himalayas.app/jobs/' + (j.companySlug || '')),\n        location_raw: loc || 'Worldwide',\n        work_policy: 'remote',\n        posted_date: posted.toISOString(),\n        description_text: (j.description || j.excerpt || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n        visa_sponsorship: false, heuristic_score: 0\n      }});\n    }\n  }\n  return out;\n} catch (e) {\n  return out.length ? out : [{ json: { source: SOURCE, id: 'error', title: '', company: '', url: '',\n    location_raw: (j.location || []).filter(Boolean).join(', ') || 'Worldwide', work_policy: 'unknown', posted_date: new Date().toISOString(),\n    description_text: '', visa_sponsorship: false, heuristic_score: 0,\n    __error: SOURCE + ': ' + String(e.message || e) } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -928
+      ],
+      "id": "5e340e45-f3d3-4f18-a504-d5b4871c172a",
+      "name": "Himalayas1"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU",
+          "mode": "list",
+          "cachedResultName": "job-radar",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 906377785,
+          "mode": "list",
+          "cachedResultName": "config",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S20FzdPz_3Ygpjq0RXYHUDspaUONhNN8by9SwlcE-GU/edit#gid=906377785"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        -1056
+      ],
+      "id": "5273e97d-d0ef-4bb4-9f33-c473748053e7",
+      "name": "Fetch Config",
+      "executeOnce": true,
+      "credentials": {
+        "googleApi": {
+          "id": "2ZJYUf6E0tvEFU8D",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const DEFAULTS = {\n  rev: 'v0', window_days: 7, slice_cap: 25, min_score: 65, priority_score: 80, max_embeds: 10,\n  require_remote: true, arbeitnow_visa_only: true, strict: true,\n  weights: { match: 0.40, filterFit: 0.25, feasibility: 0.20, recency: 0.15 },\n  seniority_ok: ['entry','junior','mid','mid-level','entry/junior','junior/mid','unknown'],\n  junior_bonus: ['entry','junior','entry/junior','junior/mid'],\n  lang_block: ['german','french','dutch','spanish','italian','polish'],\n  loc_black: ['united states','us only','canada','australia','latin america','brazil'],\n  loc_wide: ['worldwide','anywhere','europe','emea'],\n  banned_phrases: ['german required','french required','fluent german','fluent french','deutschkenntnisse'],\n  skills: ['python','fastapi','n8n','api','integration','automation','javascript','gtm','revops','ba','business analyst','clay','hubspot','salesforce','zapier','enrichment','workflow'],\n  title_senior: '\\\\b(senior|sr\\\\.?|staff|principal|lead|head of|director|vp|vice president|chief|manager)\\\\b',\n  title_junior: '\\\\b(junior|jr\\\\.?|entry|graduate|grad|intern|apprentice|trainee)\\\\b',\n  himalayas_queries: [{ q: 'automation engineer' }, { q: 'integration engineer' }, { q: 'revenue operations' }, { q: 'python engineer', seniority: 'Entry-level' }, { q: 'automation engineer', seniority: 'Entry-level' }],\n  revops_enabled: true,\n  revops_categories: ['gtm-engineering','core-revops','crm-admin','sales-ops'],\n  remocate_enabled: true,\n  remocate_categories: ['sales','marketing','analytics','manager']\n};\nconst raw = {};\nfor (const r of $('Fetch Config').all().map(i => i.json)) if (r.key) raw[String(r.key).trim()] = r.value;\nconst warnings = [];\nconst num  = (k, fb) => { const v = raw[k]; if (v === undefined || v === '') return fb; const n = Number(v); if (!Number.isFinite(n)) { warnings.push(k + ':not-number→default'); return fb; } return n; };\nconst bool = (k, fb) => { const v = raw[k]; if (v === undefined || v === '') return fb; const s = String(v).toLowerCase(); if (s === 'true') return true; if (s === 'false') return false; warnings.push(k + ':not-bool→default'); return fb; };\nconst list = (k, fb) => { const v = raw[k]; if (v === undefined || v === '') return fb; try { const a = JSON.parse(v); if (!Array.isArray(a)) throw 0; return a; } catch (e) { warnings.push(k + ':bad-json→default'); return fb; } };\nconst obj  = (k, fb) => { const v = raw[k]; if (v === undefined || v === '') return fb; try { const o = JSON.parse(v); if (!o || Array.isArray(o)) throw 0; return o; } catch (e) { warnings.push(k + ':bad-json→default'); return fb; } };\nconst str  = (k, fb) => { const v = raw[k]; if (v === undefined || v === '') return fb; return String(v); };\nconst low  = a => a.map(s => String(s).toLowerCase());\n\nconst config = {\n  rev: str('rev', DEFAULTS.rev),\n  window_days: num('window_days', DEFAULTS.window_days), slice_cap: num('slice_cap', DEFAULTS.slice_cap),\n  min_score: num('min_score', DEFAULTS.min_score), priority_score: num('priority_score', DEFAULTS.priority_score),\n  max_embeds: num('max_embeds', DEFAULTS.max_embeds),\n  require_remote: bool('require_remote', DEFAULTS.require_remote),\n  arbeitnow_visa_only: bool('arbeitnow_visa_only', DEFAULTS.arbeitnow_visa_only),\n  strict: bool('strict', DEFAULTS.strict),\n  weights: obj('weights', DEFAULTS.weights),\n  seniority_ok: low(list('seniority_ok', DEFAULTS.seniority_ok)), junior_bonus: low(list('junior_bonus', DEFAULTS.junior_bonus)),\n  lang_block: low(list('lang_block', DEFAULTS.lang_block)), loc_black: low(list('loc_black', DEFAULTS.loc_black)),\n  loc_wide: low(list('loc_wide', DEFAULTS.loc_wide)), banned_phrases: low(list('banned_phrases', DEFAULTS.banned_phrases)),\n  skills: low(list('skills', DEFAULTS.skills)),\n  title_senior: str('title_senior', DEFAULTS.title_senior), title_junior: str('title_junior', DEFAULTS.title_junior),\n  himalayas_queries: list('himalayas_queries', DEFAULTS.himalayas_queries),\n  revops_enabled: bool('revops_enabled', DEFAULTS.revops_enabled),\n  revops_categories: list('revops_categories', DEFAULTS.revops_categories),\n  remocate_enabled: bool('remocate_enabled', DEFAULTS.remocate_enabled),\n  remocate_categories: list('remocate_categories', DEFAULTS.remocate_categories)\n};\nreturn [{ json: { config, warnings } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -1056
+      ],
+      "id": "40631ff3-205c-4951-a32a-df8bea31506b",
+      "name": "Load Config",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -304,
+        0
+      ],
+      "id": "5738b1bf-9905-4738-8def-2c3b78f286ba",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://revopsroles.com/api/jobs?work_mode=remote&sort=posted_at:desc&hitsPerPage=100",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "JobRadar/1.0 (mohamedlandolsi300@gmail.com)"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json, text/plain, */*"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        160,
+        736
+      ],
+      "id": "70d363f3-1750-44b9-9f59-0389361f06b9",
+      "name": "RevOps Roles",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const CFG = $('Load Config').first().json.config;\nif (CFG.revops_enabled === false) return [];                // config kill-switch\nconst cutoff = Date.now() - CFG.window_days * 86400000;\nconst cats = new Set(CFG.revops_categories || []);\n// Structured deterministic vetoes — free, pre-slice, from the API's own classified fields\nconst SENIORITY_VETO = ['senior', 'manager', 'vp', 'director', 'c-level'];\nconst FLAG_VETO = ['quota-carrying', 'commission-based'];\nconst MAX_EXP_MIN = 4;                                      // 4+ yrs required ≠ entry/junior profile\nconst seenIds = new Set();\nconst out = [];\nfor (const item of $input.all()) {\n  for (const j of ((item.json && item.json.hits) || [])) {\n    if (!j || !j.id || !j.title || seenIds.has(j.id)) continue;\n    seenIds.add(j.id);\n    if (j.is_sponsored) continue;                            // paid placement, not organic\n    const posted = Number(j.posted_at) || 0;\n    const postedMs = posted > 1e12 ? posted : posted * 1000; // epoch seconds vs ms quirk\n    if (!postedMs || postedMs < cutoff) continue;            // window filter, client-side\n    if (j.work_mode !== 'remote') continue;\n    if (cats.size && !cats.has(j.category)) continue;        // ICP categories only\n    if (SENIORITY_VETO.includes(String(j.seniority || '').toLowerCase())) continue;\n    if ((Number(j.experience_years_min) || 0) >= MAX_EXP_MIN) continue;\n    if ((j.red_flags || []).some(f => FLAG_VETO.includes(String(f).toLowerCase()))) continue;\n    const salary = (j.salary_min || j.salary_max)\n      ? (j.salary_min || '?') + '–' + (j.salary_max || '?') + ' ' + (j.salary_currency || '')\n      : 'not listed';\n    out.push({ json: {\n      source: 'revopsroles',\n      id: String(j.id),\n      title: j.title,\n      company: j.company_name || 'unknown',\n      url: j.source_url || ('https://revopsroles.com/jobs/' + j.id),\n      location_raw: j.location_raw || 'Worldwide',\n      work_policy: 'remote',\n      posted_date: new Date(postedMs).toISOString(),\n      description_text: [\n        'Title: ' + j.title,\n        'Company: ' + (j.company_name || 'unknown') + ' (size: ' + (j.company_size || 'unknown') + ', industry: ' + (j.industry || 'unknown') + ')',\n        'Category: ' + j.category + ' | Seniority: ' + j.seniority + ' | Experience: ' + (j.experience_years_min || 0) + '-' + (j.experience_years_max || 'n/a') + ' years',\n        'Work mode: ' + j.work_mode + ' | Employment type: ' + (j.employment_type || 'unknown') + ' | Location: ' + (j.location_raw || 'unknown'),\n        'Tools: ' + ((j.tools || []).join(', ') || 'not listed'),\n        'Salary: ' + salary + ' | Comp structure: ' + (j.comp_structure || 'unknown'),\n        'Red flags: ' + ((j.red_flags || []).join(', ') || 'none'),\n        'Visa sponsorship: ' + (j.visa_sponsorship === true ? 'yes' : j.visa_sponsorship === false ? 'no' : 'unknown'),\n        'Uses AI tools: ' + (j.uses_ai_tools === true ? 'yes' : 'unknown')\n      ].join('\\n').slice(0, 6000),\n      visa_sponsorship: j.visa_sponsorship === true,\n      heuristic_score: 0\n    }});\n  }\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        720
+      ],
+      "id": "9ff7833a-324f-427b-9131-8966844aad45",
+      "name": "RevOps Roles Mapper"
+    },
+    {
+      "parameters": {
+        "url": "https://r.jina.ai/https://community.clay.com/x/share-jobs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "JobRadar/1.0 (mohamedlandolsi300@gmail.com)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        176,
+        960
+      ],
+      "id": "62d01625-94cc-4d8f-a142-564ba3a58d73",
+      "name": "Clay Community",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Clay Community (Tightknit SPA) via Jina Reader rendered-markdown bridge — ADR-JR-15\nconst SOURCE = 'clay-community';\nconst rawIn = $input.first().json;\nconst md = typeof rawIn.data === 'string' ? rawIn.data : (typeof rawIn.content === 'string' ? rawIn.content : (typeof rawIn.text === 'string' ? rawIn.text : ''));\nconst errItem = msg => [{ json: { source: SOURCE, id: 'error', title: '', company: '', url: '',\n  location_raw: '', work_policy: 'unknown', posted_date: new Date().toISOString(),\n  description_text: '', visa_sponsorship: false, heuristic_score: 0, __error: SOURCE + ': ' + msg } }];\nif (md.length < 500) return errItem('empty/unsupported reader payload (' + md.length + ' chars)');\n\nconst linkRe = /\\[([^\\]\\n]{8,140})\\]\\((https:\\/\\/community\\.clay\\.com\\/x\\/share-jobs\\/[^)\\s]+)\\)/g;\nconst seen = new Set(); const posts = []; let m;\nwhile ((m = linkRe.exec(md)) !== null) {\n  if (seen.has(m[2])) continue;\n  seen.add(m[2]);\n  posts.push({ title: m[1].trim(), url: m[2], start: m.index });\n}\nif (!posts.length) return errItem('no post links parsed — page format changed?');\n\nconst now = Date.now();\nconst ago = chunk => {\n  const t = chunk.match(/(\\d+)\\s*(minute|min|hour|hr|day|week|month)s?\\s*ago/i);\n  if (!t) return new Date(now).toISOString();\n  const n = Number(t[1]); const u = t[2].toLowerCase();\n  const mult = u.startsWith('min') ? 60000 : u.startsWith('h') ? 3600000 : u.startsWith('d') ? 86400000 : u.startsWith('w') ? 604800000 : 2592000000;\n  return new Date(now - n * mult).toISOString();\n};\n\nconst out = [];\nfor (let i = 0; i < posts.length && out.length < 30; i++) {\n  const p = posts[i];\n  const end = i + 1 < posts.length ? posts[i + 1].start : md.length;\n  const chunk = md.slice(p.start, end);\n  const body = chunk.replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1').replace(/<[^>]*>/g, ' ')\n    .replace(/[#>*_`|]+/g, ' ').replace(/\\s+/g, ' ').trim();\n  const title = p.title.replace(/<[^>]*>/g, '').trim();\n  if (/looking for work|hire me|available for hire|open to work|seeking (a )?(new )?role|my services/i.test(title + ' ' + body.slice(0, 300))) continue; // freelancer pitches, not jobs\n  out.push({ json: {\n    source: SOURCE, id: p.url, title, company: 'unknown', url: p.url,\n    location_raw: 'Worldwide',\n    work_policy: /remote|worldwide|anywhere|emea|europe/i.test(body) ? 'remote' : 'unknown',\n    posted_date: ago(chunk),\n    description_text: (title + '. ' + body).slice(0, 6000),\n    visa_sponsorship: false, heuristic_score: 0\n  }});\n}\nreturn out.length ? out : errItem('links found but all vetoed/empty');"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        944
+      ],
+      "id": "4ce4a397-ee51-474a-ad01-c4a844a6c9cf",
+      "name": "Clay Mapper"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1216,
+        128
+      ],
+      "id": "360be7c9-3a6f-40af-ac65-7317c6f8c5f9",
+      "name": "Merge Final"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        992,
+        288
+      ],
+      "id": "29f73764-6b3f-47c1-9d6b-513e5ca60e60",
+      "name": "Merge Forums"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Remocate (Source #12) — Jina Reader bridge over category pages. ADR-JR-16.\n// Fetches 4 category pages, parses inline JDs using date anchors. 4 requests/run.\nconst CFG = $('Load Config').first().json.config;\nif (CFG.remocate_enabled === false) return [];\n\nconst CATS = CFG.remocate_categories || ['sales', 'marketing', 'analytics', 'manager'];\nconst cutoff = Date.now() - CFG.window_days * 86400000;\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\n\nconst errItem = msg => [{ json: { \n  source: 'remocate', id: 'error', title: '', company: '', url: '',\n  location_raw: '', work_policy: 'unknown', posted_date: new Date().toISOString(),\n  description_text: '', visa_sponsorship: false, heuristic_score: 0, \n  __error: 'remocate: ' + msg \n}}];\n\nconst clean = s => (s || '').replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1').replace(/<[^>]*>/g, ' ')\n  .replace(/[#>*_`|]+/g, ' ').replace(/\\s+/g, ' ').trim();\n\nconst out = []; \nconst seenUrls = new Set();\nlet fetchFails = 0, marksFound = 0;\n\nfor (const cat of CATS) {\n  let md = '';\n  try {\n    const res = await this.helpers.httpRequest({ \n      method: 'GET', json: true,\n      url: 'https://r.jina.ai/https://www.remocate.app/job-categories/' + cat \n    });\n    md = typeof res.content === 'string' ? res.content : (typeof res.data === 'string' ? res.data : '');\n  } catch (e) { fetchFails++; continue; }\n  \n  if (md.length < 500) { fetchFails++; continue; }\n\n  // Find date anchors (MM/DD/YYYY) which mark the end of a job's meta-line\n  const dateRe = /(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/g; \n  let m; \n  const marks = [];\n  while ((m = dateRe.exec(md)) !== null) {\n    marks.push({ mm: +m[1], dd: +m[2], yy: +m[3], idx: m.index, end: m.index + m[0].length });\n  }\n  marksFound += marks.length;\n\n  for (let i = 0; i < marks.length && out.length < 40; i++) {\n    const lineStart = md.lastIndexOf('\\n', marks[i].idx) + 1;\n    const metaLine = md.slice(lineStart, marks[i].end);\n    const nextStart = i + 1 < marks.length ? md.lastIndexOf('\\n', marks[i + 1].idx) + 1 : md.length;\n    const body = md.slice(marks[i].end, nextStart);\n    \n    const posted = Date.UTC(marks[i].yy, marks[i].mm - 1, marks[i].dd);\n    if (!posted || posted < cutoff) continue; // Older than window_days\n\n    const urlM = (metaLine + body).match(/https:\\/\\/www\\.remocate\\.app\\/jobs\\/[A-Za-z0-9-]+/);\n    if (!urlM || seenUrls.has(urlM[0])) continue;\n    seenUrls.add(urlM[0]);\n\n    let title = '', company = 'unknown';\n    const tc = metaLine.match(/^\\s*([^\\n•]+?)\\s•\\s(.+)$/);\n    if (tc) {\n      title = clean(tc[1]);\n      const cut = tc[2].search(/(Contract based|Full-time|Part-time|Internship|Freelance|Contract)\\b|[\\u{1F1E6}-\\u{1F1FF}]{2}|📞|🌟|📍/u);\n      company = clean(cut > 0 ? tc[2].slice(0, cut) : tc[2].slice(0, 40)) || 'unknown';\n    }\n    \n    const headTitle = body.match(/^##+\\s*(.+)$/m);\n    if (headTitle) title = clean(headTitle[1]) || title;\n\n    const countryM = metaLine.match(/[\\u{1F1E6}-\\u{1F1FF}]{2}\\s*([^📞🏠•]+?)(?=\\s*(?:📞|🌟|$))/u);\n    const salaryM = metaLine.match(/\\$[\\d,]+(?:\\s*[–-]\\s*\\$[\\d,]+)?/g);\n    const empM = metaLine.match(/(Contract based|Full-time|Part-time|Internship|Freelance|Contract)\\b/);\n\n    out.push({ json: {\n      source: 'remocate', id: urlM[0], title: title || 'unknown role', company,\n      url: urlM[0],\n      location_raw: countryM ? countryM[1].trim() : 'Worldwide',\n      work_policy: /🏠\\s*Remote|\\bRemote\\b/i.test(metaLine) ? 'remote' : 'unknown',\n      posted_date: new Date(posted).toISOString(),\n      description_text: clean([\n        'Title: ' + title, 'Company: ' + company,\n        'Type: ' + (empM ? empM[1] : 'unknown'),\n        'Salary: ' + (salaryM ? salaryM.join(' – ') : 'not listed'),\n        clean(body)\n      ].join('\\n')).slice(0, 6000),\n      visa_sponsorship: /sponsor|relocation support|visa/i.test(metaLine + body),\n      heuristic_score: 0\n    }});\n  }\n  await sleep(1500); // Politeness between category pages\n}\n\nif (out.length) return out;\nif (fetchFails === CATS.length) return errItem('all category fetches failed (Jina down/rate-limited)');\nif (marksFound === 0) return errItem('format changed: no date anchors found');\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        1184
+      ],
+      "id": "992277a8-7406-4730-baad-8e466135afe2",
+      "name": "Remocate Mapper"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "RemoteOK",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Arbeitnow",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WeWorkRemotely (WWR)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remotive",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "n8n Community Jobs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Jobicy",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WWR Marketing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HN Who is Hiring",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Config",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RevOps Roles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Clay Community",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remocate Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RemoteOK": {
+      "main": [
+        [
+          {
+            "node": "RemoteOK Mapper1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remotive": {
+      "main": [
+        [
+          {
+            "node": "Remotive Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arbeitnow": {
+      "main": [
+        [
+          {
+            "node": "Arbeitnow Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arbeitnow Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RemoteOK Mapper1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remotive Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fetch Seen URLs": {
+      "main": [
+        [
+          {
+            "node": "Dedupe & Hard Filters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe & Hard Filters": {
+      "main": [
+        [
+          {
+            "node": "Batch Slice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Slice": {
+      "main": [
+        [
+          {
+            "node": "Build Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompts": {
+      "main": [
+        [
+          {
+            "node": "LLM Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Router": {
+      "main": [
+        [
+          {
+            "node": "Gate & Score",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Seen Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate & Score": {
+      "main": [
+        [
+          {
+            "node": "Run Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Matches": {
+      "main": [
+        []
+      ]
+    },
+    "Seen Rows": {
+      "main": [
+        [
+          {
+            "node": "Append Seen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Stats": {
+      "main": [
+        [
+          {
+            "node": "Append Ops",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Discord Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Seen": {
+      "main": [
+        []
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Append Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WeWorkRemotely (WWR)": {
+      "main": [
+        [
+          {
+            "node": "WWR Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WWR Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Append Ops": {
+      "main": [
+        []
+      ]
+    },
+    "Discord Digest": {
+      "main": [
+        []
+      ]
+    },
+    "n8n Community Jobs": {
+      "main": [
+        [
+          {
+            "node": "n8n Community Jobs Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobicy": {
+      "main": [
+        [
+          {
+            "node": "Jobicy Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WWR Marketing": {
+      "main": [
+        [
+          {
+            "node": "WWR Marketing Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "n8n Community Jobs Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge Forums",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobicy Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "WWR Marketing Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 7
+          }
+        ]
+      ]
+    },
+    "HN Who is Hiring": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 8
+          }
+        ]
+      ]
+    },
+    "Himalayas1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "Fetch Config": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config": {
+      "main": [
+        [
+          {
+            "node": "Himalayas1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Config",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RemoteOK",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remotive",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Arbeitnow",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WeWorkRemotely (WWR)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "n8n Community Jobs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Jobicy",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WWR Marketing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HN Who is Hiring",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RevOps Roles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Clay Community",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remocate Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RevOps Roles": {
+      "main": [
+        [
+          {
+            "node": "RevOps Roles Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RevOps Roles Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Clay Community": {
+      "main": [
+        [
+          {
+            "node": "Clay Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clay Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge Forums",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Final": {
+      "main": [
+        [
+          {
+            "node": "Fetch Seen URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Forums": {
+      "main": [
+        [
+          {
+            "node": "Merge Final",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Remocate Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 9
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "Rm29SctgOfnuy3LJ",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "91b20cfb-14d9-4420-b127-08e5ef8ce549",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "38faa931c42a6128c736e66c9089116f44eaddc2e8023575e04d465ef7462c81"
+  },
+  "nodeGroups": [],
+  "id": "yzG6ZNxjBgb9CLLa",
+  "tags": []
+}

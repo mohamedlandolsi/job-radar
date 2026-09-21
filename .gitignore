@@ -1,0 +1,15 @@
+# 1. Environment Variables & Secrets (NEVER PUSH KEYS)
+.env
+.env.*
+!.env.example
+service-account.json
+credentials.json
+*.pem
+*.key
+
+# 2. n8n Local Database (Too heavy for GitHub)
+n8n_data/
+
+# 3. OS Junk Files
+.DS_Store
+Thumbs.db
