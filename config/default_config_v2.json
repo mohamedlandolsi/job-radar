@@ -1,0 +1,730 @@
+{
+  "rev": "v2-001",
+  "profile": {
+    "headline": "Software engineering graduate (Diplome National d'Ingenieur, Master's-equivalent) pivoting to GTM automation engineering. 6-month Business Analyst and Software Engineer internship at a Berlin B2B SaaS startup building GTM workflows (FastAPI, Supabase, LLM routing, Apify, Tavily).",
+    "seniority": "entry/junior: 0 years full-time, one 6-month production internship plus three short internships",
+    "target_roles": [
+      "GTM Engineer (junior)",
+      "GTM, sales or marketing automation engineer",
+      "RevOps or sales ops associate",
+      "CRM or HubSpot specialist",
+      "n8n, Make or Zapier automation specialist",
+      "Clay specialist",
+      "Integration engineer (junior)",
+      "Technical business analyst"
+    ],
+    "skills": [
+      "n8n",
+      "Clay",
+      "HubSpot",
+      "Apify",
+      "Tavily",
+      "Python",
+      "FastAPI",
+      "SQL",
+      "PostgreSQL",
+      "Neon",
+      "Supabase",
+      "REST APIs",
+      "webhooks",
+      "LLM routing and RAG pipelines",
+      "Next.js",
+      "Docker",
+      "Git",
+      "requirements engineering",
+      "BPMN"
+    ],
+    "languages": {
+      "english": "professional working",
+      "arabic": "native",
+      "french": "reading only"
+    },
+    "location": "Tunisia (GMT+1)",
+    "constraints": "Remote (worldwide, EMEA or Europe) as employee or contractor. Hybrid or on-site only with visa sponsorship or relocation support. Freelance, contract and small paid tasks are welcome."
+  },
+  "search": {
+    "role_terms": [
+      "gtm engineer",
+      "go-to-market engineer",
+      "gtm engineering",
+      "growth engineer",
+      "automation",
+      "automations",
+      "revops",
+      "revenue operations",
+      "sales operations",
+      "sales ops",
+      "marketing operations",
+      "marketing ops",
+      "gtm operations",
+      "business operations",
+      "crm",
+      "hubspot",
+      "salesforce admin",
+      "clay",
+      "n8n",
+      "zapier",
+      "make.com",
+      "workflow",
+      "integration",
+      "integrations",
+      "no-code",
+      "low-code",
+      "technical business analyst",
+      "business systems",
+      "systems analyst",
+      "data operations",
+      "lead generation engineer",
+      "outbound engineer",
+      "automate",
+      "web scraping",
+      "lead generation",
+      "outbound"
+    ],
+    "title_block_terms": [
+      "account executive",
+      "sdr",
+      "bdr",
+      "sales development",
+      "business development representative",
+      "appointment setter",
+      "cold caller",
+      "closer",
+      "recruiter",
+      "customer success manager",
+      "copywriter",
+      "graphic designer",
+      "video editor"
+    ],
+    "title_senior_regex": "\\b(senior|sr\\.?|staff|principal|lead(?!\\s*-?\\s*(?:gen|generation|enrichment|scoring|routing|management|qualification|nurtur|list|data|research|magnet|sourcing|capture|flow))|head of|director|vp|vice president|chief|manager|founding|ii|iii|iv)\\b",
+    "title_junior_regex": "\\b(junior|jr\\.?|entry|entry[- ]level|graduate|grad|intern|internship|apprentice|trainee|working student|werkstudent)\\b",
+    "skills": [
+      "python",
+      "fastapi",
+      "n8n",
+      "api",
+      "apis",
+      "integration",
+      "automation",
+      "javascript",
+      "gtm",
+      "revops",
+      "business analyst",
+      "clay",
+      "hubspot",
+      "salesforce",
+      "zapier",
+      "make.com",
+      "enrichment",
+      "workflow",
+      "webhook",
+      "webhooks",
+      "sql",
+      "postgres",
+      "apify",
+      "crm",
+      "llm",
+      "outbound"
+    ],
+    "min_skill_hits": 2
+  },
+  "experience": {
+    "max_years_required": 0,
+    "unknown_policy": "keep",
+    "seniority_ok": [
+      "intern",
+      "internship",
+      "entry",
+      "entry-level",
+      "junior",
+      "entry/junior",
+      "graduate",
+      "associate",
+      "unknown"
+    ]
+  },
+  "work_modes": {
+    "remote": {
+      "enabled": true,
+      "regions_ok": [
+        "worldwide",
+        "anywhere",
+        "global",
+        "emea",
+        "europe",
+        "eu",
+        "european union",
+        "africa",
+        "north africa",
+        "mena",
+        "middle east",
+        "tunisia",
+        "gmt",
+        "cet",
+        "utc",
+        "international"
+      ],
+      "location_block": [
+        "united states",
+        "usa",
+        "us",
+        "u.s.",
+        "canada",
+        "north america",
+        "americas",
+        "latin america",
+        "latam",
+        "brazil",
+        "mexico",
+        "argentina",
+        "colombia",
+        "australia",
+        "new zealand",
+        "india",
+        "philippines",
+        "pakistan",
+        "apac",
+        "asia",
+        "singapore",
+        "japan"
+      ],
+      "desc_block": [
+        "us only",
+        "usa only",
+        "u.s. only",
+        "united states only",
+        "us-based only",
+        "must be based in the us",
+        "must be located in the us",
+        "must reside in the us",
+        "must live in the us",
+        "north america only",
+        "canada only",
+        "latam only",
+        "apac only",
+        "uk only",
+        "must be based in the uk",
+        "must reside in the uk"
+      ]
+    },
+    "hybrid": {
+      "enabled": true,
+      "require_visa": true
+    },
+    "onsite": {
+      "enabled": true,
+      "require_visa": true
+    },
+    "unknown_policy": "keep"
+  },
+  "visa": {
+    "unknown_policy": "drop",
+    "positive_terms": [
+      "visa sponsorship available",
+      "visa sponsorship is available",
+      "visa sponsorship provided",
+      "visa sponsorship offered",
+      "offer visa sponsorship",
+      "offers visa sponsorship",
+      "provide visa sponsorship",
+      "we sponsor visas",
+      "we can sponsor visas",
+      "we sponsor work visas",
+      "sponsor your visa",
+      "sponsor your work visa",
+      "sponsor a visa",
+      "visa support",
+      "visa assistance",
+      "relocation support",
+      "relocation package",
+      "relocation assistance",
+      "relocation bonus",
+      "help with relocation",
+      "support your relocation",
+      "blue card",
+      "work permit support",
+      "work permit sponsorship",
+      "skilled worker visa",
+      "sponsorship is available",
+      "open to sponsoring"
+    ],
+    "negative_terms": [
+      "no visa sponsorship",
+      "not offer visa sponsorship",
+      "not provide visa sponsorship",
+      "unable to sponsor",
+      "not able to sponsor",
+      "cannot sponsor",
+      "can't sponsor",
+      "can not sponsor",
+      "do not sponsor",
+      "does not sponsor",
+      "will not sponsor",
+      "won't sponsor",
+      "not sponsor visas",
+      "without sponsorship",
+      "without visa sponsorship",
+      "no sponsorship",
+      "sponsorship is not available",
+      "not eligible for sponsorship"
+    ],
+    "work_auth_terms": [
+      "right to work in the uk",
+      "right to work in the us",
+      "right to work in the eu",
+      "right to work in the european union",
+      "authorized to work in the united states",
+      "authorized to work in the us",
+      "authorised to work in the uk",
+      "eligible to work in the us",
+      "eligible to work in the uk",
+      "eligible to work in the eu",
+      "us citizens only",
+      "u.s. citizens only",
+      "us citizenship required",
+      "security clearance",
+      "green card holders",
+      "valid eu work permit",
+      "eu work permit required",
+      "existing work permit"
+    ],
+    "known_sponsors": [
+      "Bolt",
+      "Wolt",
+      "Scalable Capital",
+      "Taxfix",
+      "NavVis",
+      "JustDice",
+      "gridX",
+      "Forto",
+      "AUTO1 Group",
+      "Plata"
+    ],
+    "target_countries": []
+  },
+  "languages": {
+    "blocked": [
+      "german",
+      "french",
+      "dutch",
+      "spanish",
+      "italian",
+      "polish",
+      "portuguese",
+      "swedish",
+      "danish",
+      "norwegian",
+      "finnish"
+    ],
+    "banned_phrases": [
+      "german required",
+      "french required",
+      "fluent german",
+      "fluent french",
+      "fluent dutch",
+      "deutschkenntnisse",
+      "verhandlungssicher",
+      "native german",
+      "native french",
+      "c1 german",
+      "german c1",
+      "german (c1)",
+      "french (c1)"
+    ],
+    "detect_jd_language": true
+  },
+  "opportunity": {
+    "jobs": true,
+    "gigs": true,
+    "employment_types": [
+      "full_time",
+      "part_time",
+      "contract",
+      "freelance",
+      "internship",
+      "unknown"
+    ],
+    "block_phrases": [
+      "commission only",
+      "commission-only",
+      "commission based",
+      "commission-based",
+      "commission basis",
+      "pure commission",
+      "100% commission",
+      "revenue share",
+      "revenue sharing",
+      "rev share",
+      "rev-share",
+      "revshare",
+      "profit share",
+      "profit sharing",
+      "per attended call",
+      "per attended meeting",
+      "per booked call",
+      "per booked meeting",
+      "per qualified meeting",
+      "per meeting booked",
+      "pay per meeting",
+      "pay-per-meeting",
+      "pay per appointment",
+      "pay-per-appointment",
+      "per appointment set",
+      "referral partner",
+      "referral partners",
+      "sales partner",
+      "sales partners",
+      "affiliate partner",
+      "white label partner",
+      "white-label partner",
+      "looking to partner",
+      "partnership opportunity",
+      "equity only",
+      "equity-only",
+      "unpaid internship",
+      "unpaid position",
+      "unpaid role",
+      "volunteer position"
+    ]
+  },
+  "freshness": {
+    "window_days": 7
+  },
+  "llm": {
+    "slice_cap": 40,
+    "detail_cap": 40,
+    "max_per_source": 12,
+    "pace_ms": 15000,
+    "max_desc_chars": 3500
+  },
+  "scoring": {
+    "min_score": 65,
+    "priority_score": 80,
+    "weights": {
+      "match": 0.4,
+      "filterFit": 0.25,
+      "feasibility": 0.2,
+      "recency": 0.15
+    }
+  },
+  "sources": {
+    "remotive": {
+      "enabled": true
+    },
+    "remoteok": {
+      "enabled": true
+    },
+    "arbeitnow": {
+      "enabled": true,
+      "visa_only": true
+    },
+    "weworkremotely": {
+      "enabled": true
+    },
+    "weworkremotely-mkt": {
+      "enabled": true
+    },
+    "n8n-community": {
+      "enabled": true
+    },
+    "jobicy": {
+      "enabled": true
+    },
+    "hn-whoishiring": {
+      "enabled": true
+    },
+    "himalayas": {
+      "enabled": true,
+      "queries": [
+        {
+          "q": "gtm engineer"
+        },
+        {
+          "q": "automation engineer"
+        },
+        {
+          "q": "revenue operations"
+        },
+        {
+          "q": "marketing operations"
+        },
+        {
+          "q": "automation engineer",
+          "seniority": "Entry-level"
+        }
+      ]
+    },
+    "revopsroles": {
+      "enabled": true
+    },
+    "clay-community": {
+      "enabled": true
+    },
+    "remocate": {
+      "enabled": true,
+      "categories": [
+        "sales",
+        "marketing",
+        "analytics",
+        "manager"
+      ]
+    },
+    "working-nomads": {
+      "enabled": true
+    },
+    "linkedin": {
+      "enabled": true,
+      "mode": "guest",
+      "max_pages": 2,
+      "detail": true,
+      "searches": [
+        {
+          "keywords": "GTM engineer",
+          "location": "Worldwide",
+          "work_types": [
+            "remote"
+          ],
+          "experience": [
+            "internship",
+            "entry"
+          ]
+        },
+        {
+          "keywords": "automation engineer n8n",
+          "location": "Worldwide",
+          "work_types": [
+            "remote"
+          ],
+          "experience": [
+            "internship",
+            "entry"
+          ]
+        },
+        {
+          "keywords": "revenue operations",
+          "location": "European Union",
+          "work_types": [
+            "remote"
+          ],
+          "experience": [
+            "internship",
+            "entry"
+          ]
+        },
+        {
+          "keywords": "HubSpot automation",
+          "location": "European Union",
+          "work_types": [
+            "remote"
+          ],
+          "experience": [
+            "internship",
+            "entry"
+          ]
+        },
+        {
+          "keywords": "GTM engineer visa sponsorship",
+          "location": "European Union",
+          "work_types": [
+            "hybrid",
+            "onsite"
+          ],
+          "experience": [
+            "internship",
+            "entry"
+          ]
+        },
+        {
+          "keywords": "marketing automation relocation",
+          "location": "European Union",
+          "work_types": [
+            "hybrid",
+            "onsite"
+          ],
+          "experience": [
+            "internship",
+            "entry"
+          ]
+        }
+      ]
+    },
+    "reddit": {
+      "enabled": true,
+      "mode": "tavily",
+      "time_range": "day",
+      "max_queries": 6,
+      "subreddits": [
+        "forhire",
+        "B2BForHire",
+        "ForHireFreelance",
+        "freelance",
+        "GTMbuilders",
+        "gtmengineering",
+        "RemoteJobs",
+        "startups",
+        "hiring",
+        "jobbit",
+        "n8n",
+        "automation",
+        "hubspot",
+        "SalesOperations",
+        "remotework"
+      ],
+      "queries": [
+        "[Hiring] n8n OR Make OR Zapier automation freelancer r/forhire",
+        "[Hiring] Clay OR HubSpot OR CRM automation specialist reddit",
+        "hiring GTM engineer r/gtmengineering OR r/GTMbuilders",
+        "hiring automation specialist remote r/RemoteJobs OR r/hiring",
+        "B2B hiring lead generation automation r/B2BForHire",
+        "n8n developer needed hiring r/n8n"
+      ]
+    },
+    "ats": {
+      "enabled": true,
+      "max_per_company": 30,
+      "companies": []
+    },
+    "boards": [
+      {
+        "key": "gtmjobs-xyz",
+        "label": "GTM Jobs (gtmjobs.xyz)",
+        "enabled": true,
+        "cadence": "daily",
+        "max_items": 40,
+        "detail": "jina",
+        "list_urls": [
+          "https://gtmjobs.xyz/jobs/location/remote",
+          "https://gtmjobs.xyz/jobs/tools/n8n",
+          "https://gtmjobs.xyz/jobs/tools/clay"
+        ],
+        "job_url_regex": "https?://(?:www\\.)?gtmjobs\\.xyz/jobs/(?!location/|tools/|page/|hubs)[a-z0-9-]+-rec[a-z0-9]{8,}"
+      },
+      {
+        "key": "gtmjobshq",
+        "label": "GTM Jobs HQ",
+        "enabled": true,
+        "cadence": "daily",
+        "max_items": 40,
+        "detail": "jina",
+        "list_urls": [
+          "https://gtmjobshq.com/jobs?category=GTM%20Engineering",
+          "https://gtmjobshq.com/jobs?category=Revenue%20Operations"
+        ],
+        "job_url_regex": "https?://(?:www\\.)?gtmjobshq\\.com/jobs/[0-9a-f-]{36}"
+      },
+      {
+        "key": "upliftgtm",
+        "label": "Uplift GTM",
+        "enabled": true,
+        "cadence": "daily",
+        "max_items": 50,
+        "detail": "jina",
+        "list_urls": [
+          "https://upliftgtm.com/remote-jobs",
+          "https://upliftgtm.com/jobs?all=1"
+        ],
+        "job_url_regex": "https?://(?:www\\.)?upliftgtm\\.com/jobs/[a-z0-9-]+-[a-z0-9]{6}(?=[)\\s?#]|$)"
+      },
+      {
+        "key": "revopscareers",
+        "label": "RevOps Careers",
+        "enabled": true,
+        "cadence": "daily",
+        "max_items": 40,
+        "detail": "jina",
+        "list_urls": [
+          "https://revopscareers.com/gtm-jobs/",
+          "https://revopscareers.com/clay-jobs/",
+          "https://revopscareers.com/remote-jobs/"
+        ],
+        "job_url_regex": "https?://(?:www\\.)?revopscareers\\.com/job/[a-z0-9-]+/?"
+      },
+      {
+        "key": "cargo",
+        "label": "Cargo GTM job board",
+        "enabled": true,
+        "cadence": "weekly",
+        "max_items": 40,
+        "detail": "jina",
+        "list_urls": [
+          "https://www.getcargo.ai/jobs"
+        ],
+        "job_url_regex": "https?://(?:jobs\\.ashbyhq\\.com|job-boards(?:\\.eu)?\\.greenhouse\\.io|boards\\.greenhouse\\.io|jobs\\.lever\\.co|apply\\.workable\\.com|[a-z0-9-]+\\.workable\\.com|www\\.linkedin\\.com/jobs/view)/[^\\s)\\]\"']+"
+      },
+      {
+        "key": "gtm-quest",
+        "label": "GTM Quest",
+        "enabled": true,
+        "cadence": "daily",
+        "max_items": 50,
+        "detail": "jina",
+        "list_urls": [
+          "https://gtm.quest/gtm-jobs"
+        ],
+        "job_url_regex": "https?://(?:jobs\\.ashbyhq\\.com|job-boards(?:\\.eu)?\\.greenhouse\\.io|boards\\.greenhouse\\.io|jobs\\.lever\\.co|apply\\.workable\\.com|[a-z0-9-]+\\.workable\\.com|careers-page\\.com|[a-z0-9-]+\\.bamboohr\\.com/careers|[a-z0-9.-]+\\.myworkdayjobs\\.com|[a-z0-9-]+\\.icims\\.com/jobs)/[^\\s)\\]\"']+"
+      },
+      {
+        "key": "clay-job-board",
+        "label": "Clay GTM job board",
+        "enabled": false,
+        "cadence": "daily",
+        "max_items": 40,
+        "detail": "jina",
+        "list_urls": [
+          "https://www.clay.com/job-board"
+        ],
+        "job_url_regex": "https?://(?:www\\.)?clay\\.com/job-board/[a-z0-9-]+"
+      },
+      {
+        "key": "adamgtm",
+        "label": "adamgtm index (jobs)",
+        "enabled": false,
+        "cadence": "weekly",
+        "max_items": 30,
+        "detail": "jina",
+        "list_urls": [
+          "https://adamgtm.com/index/"
+        ],
+        "job_url_regex": "https?://(?:jobs\\.ashbyhq\\.com|job-boards(?:\\.eu)?\\.greenhouse\\.io|boards\\.greenhouse\\.io|jobs\\.lever\\.co|apply\\.workable\\.com)/[^\\s)\\]\"']+"
+      },
+      {
+        "key": "gtmfund",
+        "label": "GTMfund portfolio jobs (gtmnow.com/jobs)",
+        "enabled": false,
+        "cadence": "daily",
+        "max_items": 40,
+        "detail": "jina",
+        "list_urls": [
+          "https://jobs.gtmfund.com/jobs"
+        ],
+        "job_url_regex": "https?://jobs\\.gtmfund\\.com/companies/[^/\\s)]+/jobs/[0-9]+[^\\s)\\]\"']*"
+      },
+      {
+        "key": "startup-jobs",
+        "label": "startup.jobs",
+        "enabled": false,
+        "cadence": "daily",
+        "max_items": 40,
+        "detail": "jina",
+        "list_urls": [
+          "https://startup.jobs/?q=gtm%20engineer",
+          "https://startup.jobs/?q=automation%20engineer"
+        ],
+        "job_url_regex": "https?://(?:www\\.)?startup\\.jobs/[a-z0-9-]+-\\d{4,}"
+      },
+      {
+        "key": "contra",
+        "label": "Contra featured jobs",
+        "enabled": false,
+        "cadence": "weekly",
+        "max_items": 30,
+        "detail": "jina",
+        "list_urls": [
+          "https://contra.com/featured-jobs/freelance-coding-jobs",
+          "https://contra.com/featured-jobs/freelance-marketing-jobs"
+        ],
+        "job_url_regex": "https?://contra\\.com/(?:opportunity|opportunities|job|jobs)/[A-Za-z0-9-]+"
+      }
+    ]
+  }
+}

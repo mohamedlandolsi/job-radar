@@ -1,4 +1,4 @@
-# 1. Environment Variables & Secrets (NEVER PUSH KEYS)
+# 1. Environment variables and secrets (never push keys)
 .env
 .env.*
 !.env.example
@@ -7,9 +7,18 @@ credentials.json
 *.pem
 *.key
 
-# 2. n8n Local Database (Too heavy for GitHub)
+# 2. n8n local database (too heavy for GitHub)
 n8n_data/
 
-# 3. OS Junk Files
+# 3. Node / Next.js / Vercel build output
+node_modules/
+.next/
+.vercel/
+next-env.d.ts
+*.tsbuildinfo
+*.log
+*.pid
+
+# 4. OS junk files
 .DS_Store
 Thumbs.db

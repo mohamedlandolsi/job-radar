@@ -1,0 +1,24 @@
+import fs from 'node:fs';
+import { parseConfigText } from '../console/lib/config-schema.ts';
+const raw = fs.readFileSync(process.argv[2], 'utf8');
+let fails = 0;
+const ok = parseConfigText(raw);
+console.log(ok.ok ? 'ok   default config parses' : 'FAIL default config: ' + JSON.stringify(ok)); if (!ok.ok) fails++;
+const bad = (mut: (c: any) => void, frag: string) => {
+  const c = JSON.parse(raw); mut(c); const r = parseConfigText(JSON.stringify(c));
+  const pass = !r.ok && r.errors.some(e => e.includes(frag));
+  if (!pass) fails++;
+  console.log(pass ? 'ok  ' : 'FAIL', frag, '->', r.ok ? 'accepted' : r.errors.join(' | ').slice(0, 140));
+};
+bad(c => { c.search.title_senior_regex = '(unclosed'; }, 'search.title_senior_regex: is not a valid JavaScript regex');
+bad(c => { c.sources.boards[0].job_url_regex = '[a-'; }, 'sources.boards.0.job_url_regex');
+bad(c => { c.scoring.weights.match = 0.7; }, 'scoring.weights: must add up to 1');
+bad(c => { c.llm.slice_cap = 61; }, 'llm.slice_cap');
+bad(c => { c.sources.linkedin.searches[0].work_types = ['office']; }, 'sources.linkedin.searches.0.work_types.0');
+bad(c => { c.sources.boards[1].key = c.sources.boards[0].key; }, 'is used twice');
+bad(c => { c.extra = 1; }, 'config');
+bad(c => { c.sources.boards[0].list_urls = ['http://insecure.com']; }, 'must start with https://');
+bad(c => { c.experience.max_years_required = 1.5; }, 'experience.max_years_required');
+const p = parseConfigText('{oops');
+console.log(!p.ok && p.errors[0].startsWith('invalid_json') ? 'ok   invalid json' : 'FAIL invalid json'); 
+console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
