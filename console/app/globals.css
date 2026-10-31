@@ -66,6 +66,9 @@
   --color-kind-job: var(--kind-job);                 --color-kind-job-tint: var(--kind-job-tint);
   --color-kind-gig: var(--kind-gig);                 --color-kind-gig-tint: var(--kind-gig-tint);
   --color-star: var(--star);
+  /* chart series: dataviz reference palette, categorical slots 1 and 2 (validated on --card, light and dark) */
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
 }
 
 :root {
@@ -112,6 +115,8 @@
   --kind-job: #3E4C5E;         --kind-job-tint: #E5EAF0;
   --kind-gig: #0D6A70;         --kind-gig-tint: #DCF0F1;
   --star: #B26B00;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
 
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -167,6 +172,8 @@
   --kind-job: #B3C0CF;         --kind-job-tint: #2A323C;
   --kind-gig: #7CD3D8;         --kind-gig-tint: #163437;
   --star: #F0BE5F;
+  --series-1: #3987e5;
+  --series-2: #d95926;
 
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);

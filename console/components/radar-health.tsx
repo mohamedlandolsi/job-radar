@@ -3,8 +3,7 @@ import { getHealth } from "@/lib/radar";
 import { requireSession } from "@/lib/session";
 import { formatAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-const STALE_SECONDS = 36 * 3600;
+import { healthState } from "@/lib/health";
 
 // Header chip from v_jr_health: last run age, config rev, paused, awaiting review.
 // Red with an icon when there is no run yet, the last run failed, or it is older than 36 hours.
@@ -24,8 +23,7 @@ export async function RadarHealth() {
   }
 
   const failed = h.last_status === "failed";
-  const stale = h.age_seconds > STALE_SECONDS;
-  const red = failed || stale;
+  const { red } = healthState(h);
   const running = h.last_status === "running";
   const revNote = h.rev_current === false ? `rev ${h.config_rev} applies next run` : `rev ${h.last_run_rev}`;
 
