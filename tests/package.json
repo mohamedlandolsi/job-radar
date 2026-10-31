@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node schema_test.mjs ../sql/radar_v2_schema.sql ../config/default_config_v2.json && node gate_b_test.mjs ../config/default_config_v2.json ../n8n && node pipeline_test.mjs ../sql/radar_v2_schema.sql ../config/default_config_v2.json ../n8n && node detail_fetch_test.mjs ../config/default_config_v2.json ../n8n && node v1_patch_test.mjs ../n8n && node --experimental-strip-types --no-warnings config_schema_test.mts ../config/default_config_v2.json"
+    "test": "node schema_test.mjs ../sql/radar_v2_schema.sql ../config/default_config_v2.json && node gate_b_test.mjs ../config/default_config_v2.json ../n8n && node pipeline_test.mjs ../sql/radar_v2_schema.sql ../config/default_config_v2.json ../n8n && node detail_fetch_test.mjs ../config/default_config_v2.json ../n8n && node v1_patch_test.mjs ../n8n && node --import ./console-deps.mjs --experimental-strip-types --no-warnings config_schema_test.mts ../config/default_config_v2.json"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.13",
