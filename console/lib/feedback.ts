@@ -8,7 +8,10 @@ const KNOWN: [prefix: string, title: string][] = [
   ["notes_too_long", "Notes can be 2,000 characters at most"],
   ["nothing_to_save", "There is nothing to save"],
   ["unknown_action", "The database does not know that action"],
-  ["not_found", "This match no longer exists"],
+  ["not_dropped", "Only dropped postings can be flagged"],
+  ["unknown_flag", "The database does not know that flag"],
+  ["note_too_long", "The note can be 500 characters at most"],
+  ["not_found", "This item no longer exists"],
   ["invalid_input", "Some fields are too long or missing"],
 ];
 
