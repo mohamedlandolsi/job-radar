@@ -1,0 +1,1577 @@
+{
+  "name": "Job Radar v2",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        -272
+      ],
+      "id": "3c8531ec-9b9f-4109-b591-6129d9345065",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "https://remotive.com/api/remote-jobs?limit=50",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -80,
+        -672
+      ],
+      "id": "0bf787d0-f5a8-4982-8d56-947de33bb031",
+      "name": "Remotive",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://remoteok.com/api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "JobRadar/1.0 (mohamedlandolsi300@gmail.com)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -80,
+        -864
+      ],
+      "id": "b19c75b1-f096-42c6-8580-f6c546545c39",
+      "name": "RemoteOK",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://www.arbeitnow.com/api/job-board-api",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -80,
+        -480
+      ],
+      "id": "9da4407f-d1e6-451d-9974-2f17079ba731",
+      "name": "Arbeitnow",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobs = $input.first().json.data || [];\n\nreturn jobs.map(job => {\n  const cleanDesc = (job.description || '').replace(/<[^>]*>?/gm, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000);\n  return {\n    json: {\n      source: 'arbeitnow',\n      id: job.slug,\n      title: job.title,\n      company: job.company_name,\n      url: job.url,\n      location_raw: (job.locations || []).join(', '),\n      work_policy: job.remote ? 'remote' : 'onsite',\n      posted_date: new Date(job.created_at * 1000).toISOString(), // Convert timestamp\n      description_text: cleanDesc,\n      visa_sponsorship: job.visa_sponsorship === true\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -480
+      ],
+      "id": "f05a14e6-7f1c-4d25-8988-4167b025d6d0",
+      "name": "Arbeitnow Mapper"
+    },
+    {
+      "parameters": {
+        "numberInputs": 10
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        592,
+        -416
+      ],
+      "id": "60d30c43-5394-46be-9892-65bf9bec0972",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Job Radar v2 | RemoteOK Mapper1 (v1 node, patched). Input: \"RemoteOK\".\n// Fix (run 1, 2026-10-30): the map read job.description on the n8n item wrapper, so every description\n// was empty and the length filter dropped all jobs (100 in, 0 out). It now reads item.json.\nconst items = $input.all();\n\n// Hard veto: drop legal disclaimer, missing fields, string \"undefined\", and whitespace/empty descriptions\nconst jobs = items.filter(item => {\n  const j = item.json;\n  if (!j || !j.position || !j.company) return false;\n  \n  // Guard 1: reject literal string \"undefined\" and whitespace-only IDs\n  const id = String(j.id || '').trim();\n  if (!id || id.toLowerCase() === 'undefined') return false;\n  \n  // Guard 2: reject whitespace-only or HTML-comment-only descriptions (before regex cleaning)\n  const desc = String(j.description || '').trim();\n  if (desc.length < 50) return false;\n  \n  return true;\n});\n\nreturn jobs.map(item => {\n  const job = item.json;\n  const cleanDesc = (job.description || '').replace(/<[^>]*>?/gm, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000);\n  let finalUrl = job.url;\n  if (finalUrl && !finalUrl.startsWith('http')) finalUrl = 'https://remoteok.com' + finalUrl;\n\n  return {\n    json: {\n      source: 'remoteok',\n      id: String(job.id).trim(),\n      title: job.position,\n      company: job.company,\n      url: finalUrl,\n      location_raw: job.location || 'Worldwide',\n      work_policy: 'remote',\n      posted_date: job.date,\n      description_text: cleanDesc,\n      visa_sponsorship: false,\n      heuristic_score: 0\n    }\n  };\n}).filter(item => item.json.description_text.length > 100);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -864
+      ],
+      "id": "d11945e4-8396-4d33-b42c-a74b11db4eec",
+      "name": "RemoteOK Mapper1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobs = $input.first().json.jobs || [];\nconst htmlRegex = /<[^>]*>?/gm; // Regex to strip HTML tags\n\nreturn jobs.map(job => {\n  const cleanDesc = (job.description || '').replace(htmlRegex, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000);\n  return {\n    json: {\n      source: 'remotive',\n      id: String(job.id),\n      title: job.title,\n      company: job.company_name,\n      url: job.url,\n      location_raw: job.candidate_required_location || 'Worldwide',\n      work_policy: 'remote', \n      posted_date: job.publication_date,\n      description_text: cleanDesc,\n      visa_sponsorship: false \n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -672
+      ],
+      "id": "fb808c8a-5f5c-43a0-b083-29fea4e84a05",
+      "name": "Remotive Mapper"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Build Prompts (Code, run once for all items). Input: \"Rank & Slice\".\n// The candidate profile now lives in config.profile (edited in the console), not in this code.\nconst L = $('Load Config').first().json;\nconst C = L.config;\nconst items = $input.all().map(i => i.json).filter(j => j.url);\nif (!items.length) return [{ json: { __empty: true } }];\n\nconst SYSTEM = [\n  'You are a strict job-fit analyst for one candidate. Evaluate ONE posting against the candidate profile.',\n  'Return ONLY valid JSON with exactly this schema:',\n  '{\"match_score\": number 0-100, \"why_match\": string (max 2 sentences), \"red_flags\": [string], \"confidence\": number 0-100,',\n  ' \"extracted\": {\"job_title\": string, \"company\": string,',\n  '  \"seniority\": \"intern|entry|junior|mid|senior|lead|unknown\",',\n  '  \"min_years_required\": number or null (the smallest MINIMUM years of experience the posting REQUIRES; null if none is stated; months as a fraction),',\n  '  \"experience_evidence\": string (quote the exact phrase, or \"\"),',\n  '  \"work_mode\": \"remote|hybrid|onsite|unknown\", \"location_constraint\": string,',\n  '  \"remote_region\": \"worldwide|emea|europe|us|americas|apac|uk|country|unknown\",',\n  '  \"languages_required\": [string] (only languages that are REQUIRED, never \"nice to have\"),',\n  '  \"visa_status\": \"sponsors|relocation_support|no_sponsorship|work_auth_required|unknown\",',\n  '  \"employment_type\": \"full_time|part_time|contract|freelance|internship|unknown\",',\n  '  \"contract_friendly\": boolean, \"company_size_hint\": string, \"salary\": string}}',\n  'Rules: never guess years; \"proven experience\" without a number means null. A freelance gig is judged on the task, not on employer perks.'\n].join('\\n');\n\nconst profile = JSON.stringify(C.profile);\nconst maxChars = Number(C.llm.max_desc_chars) || 3500;\nreturn items.map(j => ({ json: {\n  system: SYSTEM,\n  prompt: 'Candidate profile: ' + profile +\n    '\\n\\nPosting (' + j.kind + ', source ' + j.source + ')\\nTitle: ' + j.title + '\\nCompany: ' + j.company +\n    '\\nLocation: ' + (j.location_raw || 'not stated') + '\\nWork mode (detected): ' + j.work_mode +\n    '\\nDescription: ' + String(j.description_text || '').slice(0, maxChars) +\n    '\\n\\nEvaluate fit and extract attributes. JSON only.',\n  job: j\n} }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1712,
+        -144
+      ],
+      "id": "5c60960d-9cbf-4ab4-8fe7-0c31e21e69c8",
+      "name": "Build Prompts"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Job Radar v2 | LLM Router v7 (Code, run once for all items). Input: \"Build Prompts\".\n// v6 chain unchanged (groq gpt-oss-120b -> gemini 3.5 flash-lite -> gemini 2.5 flash). v7 adds:\n//  - skips the {__empty} sentinel (no LLM call when nothing survived the gates)\n//  - pacing from config llm.pace_ms (Groq free tier: 8K tokens/min and about 1.8K tokens per call, so 15 s)\n//  - a time budget under N8N_RUNNERS_TASK_TIMEOUT: items it cannot reach are returned with\n//    provider \"deferred\" and go back to the queue (skipped_cap) instead of killing the run\nconst GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';\nconst GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';\nconst CHAIN = [\n  { name: 'groq-gptoss',      url: GROQ_URL,   key: () => $env.GROQ_API_KEY,   model: 'openai/gpt-oss-120b' },\n  { name: 'gemini-3.5-lite',  url: GEMINI_URL, key: () => $env.GEMINI_API_KEY, model: 'gemini-3.5-flash-lite', temperature: 0.2 },\n  { name: 'gemini-2.5-flash', url: GEMINI_URL, key: () => $env.GEMINI_API_KEY, model: 'gemini-2.5-flash', temperature: 0.2 }\n];\nconst C = $('Load Config').first().json.config;\nconst PACE = Math.max(4000, Number(C.llm.pace_ms) || 15000);\nlet limitS = 280;\ntry { limitS = Math.max(120, (Number($env.N8N_RUNNERS_TASK_TIMEOUT) || 300) - 30); } catch (e) { /* default */ }\nconst started = Date.now();\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\nfunction parseJSON(s) {\n  try { return JSON.parse(s); } catch (e) {\n    const m = (s || '').match(/\\{[\\s\\S]*\\}/);\n    try { return m ? JSON.parse(m[0]) : null; } catch (e2) { return null; }\n  }\n}\nconst callProvider = async (p, system, prompt) => {\n  const body = { model: p.model, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };\n  if (typeof p.temperature === 'number') body.temperature = p.temperature;\n  const data = await this.helpers.httpRequest({\n    method: 'POST', url: p.url, timeout: 60000,\n    headers: { 'Authorization': 'Bearer ' + p.key(), 'Content-Type': 'application/json' }, body, json: true\n  });\n  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));\n  const parsed = parseJSON(data.choices?.[0]?.message?.content || '');\n  if (!parsed) throw new Error('Unparseable JSON');\n  return parsed;\n};\nconst is429 = e => /429|rate|resource has been exhausted/i.test(String(e.message || e));\n\nconst items = $input.all().filter(i => i.json && i.json.prompt);\nif (!items.length) return [{ json: { __empty: true } }];\nconst results = [];\nfor (let i = 0; i < items.length; i++) {\n  const { system, prompt, job } = items[i].json;\n  if ((Date.now() - started) / 1000 > limitS - 70) { results.push({ json: { job, provider: 'deferred', llm: null, errors: { budget: 'task time budget reached' } } }); continue; }\n  let llm = null, provider = 'none';\n  const errors = {};\n  for (const p of CHAIN) {\n    for (let attempt = 0; attempt < 2; attempt++) {\n      try { llm = await callProvider(p, system, prompt); provider = p.name; break; }\n      catch (e) {\n        errors[p.name] = String(e.message || e).slice(0, 200);\n        if (is429(e) && attempt === 0 && (Date.now() - started) / 1000 < limitS - 90) { await sleep(25000); continue; }\n        break;\n      }\n    }\n    if (llm) break;\n  }\n  results.push({ json: { job, provider, llm, errors } });\n  if (i < items.length - 1) await sleep(PACE);\n}\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1936,
+        -144
+      ],
+      "id": "b55e3861-2b52-4250-8573-e0ad38eaa680",
+      "name": "LLM Router"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Gate & Score v2 (Code, run once for all items). Input: \"LLM Router\".\n// Gate C re-checks the hard rules on what the LLM extracted (it reads phrasings the regexes miss),\n// then scores. Emits one result per job: outcome matched | below_score | dropped_llm | llm_failed | deferred.\nconst L = $('Load Config').first().json;\nconst C = L.config;\nconst W = Object.assign({ match: 0.40, filterFit: 0.25, feasibility: 0.20, recency: 0.15 }, C.scoring.weights);\nconst maxYears = Number(C.experience.max_years_required) || 0;\nconst seniorityOk = new Set((C.experience.seniority_ok || []).map(s => String(s).toLowerCase()));\nconst blockedLang = (C.languages.blocked || []).map(s => s.toLowerCase());\nconst BAD_REGIONS = new Set(['us', 'americas', 'apac', 'uk']);\nconst WIDE = new Set(['worldwide', 'emea', 'europe']);\nconst clamp = n => Math.max(0, Math.min(100, Number(n) || 0));\n\nconst out = [];\nfor (const item of $input.all()) {\n  const { job, provider, llm } = item.json;\n  if (!job || !job.url) continue;\n  const base = { posting_id: job.posting_id, url: job.url, source: job.source };\n  if (provider === 'deferred') { out.push({ json: Object.assign(base, { outcome: 'deferred', reason: 'llm_time_budget' }) }); continue; }\n  if (!llm) { out.push({ json: Object.assign(base, { outcome: 'llm_failed', reason: 'all_providers_failed', detail: JSON.stringify(item.json.errors || {}).slice(0, 200) }) }); continue; }\n\n  const ex = llm.extracted || {};\n  const seniority = String(ex.seniority || 'unknown').toLowerCase();\n  const mode = ['remote', 'hybrid', 'onsite'].includes(String(ex.work_mode).toLowerCase()) ? String(ex.work_mode).toLowerCase()\n    : (['remote', 'hybrid', 'onsite'].includes(job.work_mode) ? job.work_mode : 'unknown');\n  const region = String(ex.remote_region || 'unknown').toLowerCase();\n  const visa = String(ex.visa_status || 'unknown').toLowerCase();\n  const langs = (Array.isArray(ex.languages_required) ? ex.languages_required : []).map(l => String(l).toLowerCase());\n  const years = (ex.min_years_required === null || ex.min_years_required === undefined || ex.min_years_required === '') ? null : Number(ex.min_years_required);\n  const contract = !!ex.contract_friendly;\n  const wm = C.work_modes;\n\n  let drop = null;\n  if (Number.isFinite(years) && years >= maxYears + 1) drop = ['llm_experience', String(ex.experience_evidence || years + ' years').slice(0, 200)];\n  else if (!seniorityOk.has(seniority)) drop = ['llm_seniority', seniority];\n  else if (langs.some(l => blockedLang.some(b => l.includes(b)))) drop = ['llm_language', langs.join(', ')];\n  else if (mode !== 'unknown' && !wm[mode].enabled) drop = ['llm_work_mode', mode];\n  else if (mode === 'remote' && (visa === 'work_auth_required' || (BAD_REGIONS.has(region) && !contract))) drop = ['llm_location', region + ' / ' + visa];\n  else if ((mode === 'hybrid' || mode === 'onsite') && wm[mode].require_visa) {\n    if (visa === 'no_sponsorship' || visa === 'work_auth_required') drop = ['llm_visa', visa];\n    else if (visa === 'unknown' && job.visa_signal !== 'positive' && C.visa.unknown_policy === 'drop') drop = ['llm_visa', 'unknown'];\n  }\n  if (drop) { out.push({ json: Object.assign(base, { outcome: 'dropped_llm', reason: drop[0], detail: drop[1] }) }); continue; }\n\n  // ---- score (same four factors as v1; feasibility now reads visa_status and remote region) ----\n  const match = clamp(llm.match_score);\n  const juniorish = ['intern', 'entry', 'junior'].includes(seniority);\n  const wide = WIDE.has(region);\n  const visaOk = visa === 'sponsors' || visa === 'relocation_support' || job.visa_signal === 'positive';\n  const filterFit = ((juniorish ? 1 : 0) + (mode === 'remote' ? 1 : 0) + (wide ? 1 : 0) + (visaOk || contract ? 1 : 0)) / 4 * 100;\n  const feasibility = mode === 'remote'\n    ? (wide ? 75 : region === 'unknown' ? 55 : 35) + (contract ? 10 : 0)\n    : (visa === 'sponsors' ? 90 : visa === 'relocation_support' ? 80 : job.visa_signal === 'positive' ? 70 : 30);\n  const days = (Date.now() - new Date(job.posted_date).getTime()) / 86400000;\n  const recency = days <= 2 ? 100 : days <= 7 ? 80 : days <= 14 ? 60 : 40;\n  const final = Math.round(W.match * match + W.filterFit * filterFit + W.feasibility * Math.min(100, feasibility) + W.recency * recency);\n  const breakdown = 'match=' + match + '; fit=' + Math.round(filterFit) + '; feas=' + Math.min(100, feasibility) + '; rec=' + recency;\n  if (final < C.scoring.min_score) { out.push({ json: Object.assign(base, { outcome: 'below_score', reason: 'below_min_score', final_score: final, detail: breakdown }) }); continue; }\n\n  const CLEAN = new Set(['linkedin', 'ats', 'working-nomads', 'remotive', 'remoteok', 'arbeitnow', 'weworkremotely', 'weworkremotely-mkt', 'jobicy', 'himalayas', 'revopsroles', 'remocate']);\n  const cleanTitle = (!CLEAN.has(job.source) || job.title.length > 120 || job.title === '(untitled)') && ex.job_title ? String(ex.job_title) : job.title;\n  const company = (job.company === 'unknown' || /^r\\//.test(job.company)) && ex.company ? String(ex.company) : job.company;\n  out.push({ json: Object.assign(base, {\n    outcome: 'matched', final_score: final,\n    match: {\n      posting_id: job.posting_id, url: job.url, source: job.source, kind: job.kind,\n      title: cleanTitle.slice(0, 300), company: company.slice(0, 200), location_raw: job.location_raw,\n      work_mode: mode, employment_type: String(ex.employment_type || job.employment_type || 'unknown'),\n      posted_date: job.posted_date, final_score: final, priority: final >= C.scoring.priority_score,\n      why_match: llm.why_match || '', red_flags: (Array.isArray(llm.red_flags) ? llm.red_flags : []).join('; '),\n      seniority, min_years_required: Number.isFinite(years) ? years : (job.regex_min_years ?? ''),\n      experience_evidence: String(ex.experience_evidence || job.regex_evidence || '').slice(0, 300),\n      languages_required: langs.join(', '), visa_status: visa === 'unknown' && job.visa_signal === 'positive' ? 'signal:' + job.visa_evidence : visa,\n      remote_region: region, contract_friendly: contract, company_size_hint: ex.company_size_hint || 'unknown',\n      salary: ex.salary || 'not listed', confidence: clamp(llm.confidence), provider, score_breakdown: breakdown\n    }\n  }) });\n}\nreturn out.length ? out : [{ json: { __empty: true } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        -240
+      ],
+      "id": "7768f7dd-1618-4c2d-a0f2-f3f1b63a5bce",
+      "name": "Gate & Score"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Run Stats (Code, run once for all items). Input: \"Record Postings\".\n// Builds the jr_finish_run() payload: the funnel for this run and one stats object per source.\nconst safeAll = name => { try { return $(name).all().map(i => i.json); } catch (e) { return []; } };\nconst L = $('Load Config').first().json;\nconst merged = safeAll('Merge All');\nconst norm = safeAll('Normalize').filter(j => j.url);\nconst gateA = safeAll('Gate A').filter(j => j.url);\nconst fresh = safeAll('Rejoin').filter(j => j.url);\nconst gateB = safeAll('Gate B').filter(j => j.url);\nconst router = safeAll('LLM Router').filter(j => j.job);\nconst scored = safeAll('Gate & Score').filter(j => j.url);\nconst rec = (safeAll('Record Postings')[0] || {}).result || {};\n\nconst S = {};\nconst bump = (src, k, n = 1) => { S[src] = S[src] || { fetched: 0, errors: 0, gate_a_pass: 0, new: 0, gate_b_pass: 0, matches: 0 }; S[src][k] += n; };\nfor (const j of merged) {\n  if (j.__error) { bump(j.source || 'unknown', 'errors'); S[j.source || 'unknown'].error = String(j.__error).slice(0, 200); }\n  else if (j.__skip && j.source && j.source !== 'normalize') { bump(j.source, 'fetched', 0); S[j.source].skipped = j.__skip; }\n}\nfor (const j of norm) bump(j.source, 'fetched');\nfor (const j of gateA) if (j.gate_a === 'pass') bump(j.source, 'gate_a_pass');\nfor (const j of fresh) bump(j.source, 'new');\nfor (const j of gateB) if (j.gate_b === 'pass') bump(j.source, 'gate_b_pass');\nfor (const r of scored) if (r.outcome === 'matched') bump(r.source, 'matches');\n\nconst providers = router.map(r => r.provider);\nconst funnel = {\n  merged: merged.length,\n  fetched: norm.length,\n  gate_a_pass: gateA.filter(j => j.gate_a === 'pass').length,\n  new_or_retry: fresh.length,\n  detail_ok: gateB.filter(j => j.detail_status === 'ok').length,\n  gate_b_pass: gateB.filter(j => j.gate_b === 'pass').length,\n  llm_calls: providers.filter(p => p !== 'none' && p !== 'deferred').length,\n  llm_deferred: providers.filter(p => p === 'deferred').length,\n  scored: scored.length,\n  matches: scored.filter(r => r.outcome === 'matched').length,\n  matches_new: Number(rec.matches_new || 0)\n};\nconst sourceErrors = merged.filter(j => j.__error).map(j => j.__error);\nconst routerErrors = router.filter(r => r.errors && Object.keys(r.errors).length).slice(0, 2).map(r => JSON.stringify(r.errors).slice(0, 160));\nreturn [{ json: {\n  run_id: L.run_id,\n  payload: {\n    funnel, source_stats: S,\n    providers: providers.join(','),\n    failures: providers.filter(p => p === 'none').length,\n    warnings: (L.warnings || []).join('; '),\n    errors_sample: sourceErrors.concat(routerErrors).join(' | ').slice(0, 1500)\n  }\n} }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        -144
+      ],
+      "id": "85f4885e-ff97-46df-968d-77e13cb59170",
+      "name": "Run Stats"
+    },
+    {
+      "parameters": {
+        "url": "https://weworkremotely.com/categories/remote-programming-jobs.rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        -288
+      ],
+      "id": "3a40dc00-66c4-4250-9b0e-57e268e8f34a",
+      "name": "WeWorkRemotely (WWR)",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const r = item.json;\n  return { json: {\n    source: 'weworkremotely',\n    id: r.guid || r.link,\n    title: r.title,\n    company: (r.creator || '').trim() || 'unknown',\n    url: r.link,\n    location_raw: 'Worldwide',\n    work_policy: 'remote',\n    posted_date: r.isoDate || r.pubDate || new Date().toISOString(),\n    description_text: (r.content || r.contentSnippet || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n    visa_sponsorship: false,\n    heuristic_score: 0\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -288
+      ],
+      "id": "ede33859-77c1-4d40-a28f-b70135ef6d32",
+      "name": "WWR Mapper"
+    },
+    {
+      "parameters": {
+        "jsCode": "const SOURCE = 'n8n-community';\nreturn $input.all().map(item => {\n  const r = item.json;\n  const title = (r.title || '').trim();\nif (/\\[for hire\\]|available for hire|available for projects|open for projects|looking for clients/i.test(title)) return null; // freelancer pitches, not jobs\n  const text = (title + ' ' + (r.content || '')).toLowerCase();\n  return { json: {\n    source: SOURCE, id: r.guid || r.link, title, company: 'unknown', url: r.link,\n    location_raw: 'Worldwide',\n    work_policy: /remote|anywhere|worldwide|emea|europe|utc/i.test(text) ? 'remote' : 'unknown',\n    posted_date: r.isoDate || r.pubDate || new Date().toISOString(),\n    description_text: (r.content || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n    visa_sponsorship: false, heuristic_score: 0\n  }};\n}).filter(Boolean);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -16
+      ],
+      "id": "1ed139cb-0a2e-4b81-819b-b9d5721d2626",
+      "name": "n8n Community Jobs Mapper"
+    },
+    {
+      "parameters": {
+        "url": "https://community.n8n.io/c/jobs/13.rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        -16
+      ],
+      "id": "c36e1f1b-cfbb-456f-8933-3716a54ac140",
+      "name": "n8n Community Jobs",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://jobicy.com/api/v2/remote-jobs?count=100",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -80,
+        368
+      ],
+      "id": "8267bbff-55d6-40ca-aa31-33e04022d570",
+      "name": "Jobicy",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobs = $input.first().json.jobs || [];\nreturn jobs.map(j => ({ json: {\n  source: 'jobicy', id: String(j.id), title: j.jobTitle, company: j.companyName || 'unknown',\n  url: j.url, location_raw: j.jobGeo || 'Worldwide', work_policy: 'remote',\n  posted_date: j.pubDate || new Date().toISOString(),\n  description_text: (j.jobDescription || j.jobExcerpt || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n  visa_sponsorship: false, heuristic_score: 0\n}})).filter(x => !/^(americas|north america|usa|us|canada|apac|asia|australia|latam|latin america)$/i.test(x.json.location_raw));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        368
+      ],
+      "id": "49d35220-e0dd-47df-a5a1-9e2f669b1ae1",
+      "name": "Jobicy Mapper"
+    },
+    {
+      "parameters": {
+        "url": "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        560
+      ],
+      "id": "5f5585a3-823c-461a-902e-0b66a34922e3",
+      "name": "WWR Marketing",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const r = item.json;\n  return { json: {\n    source: 'weworkremotely-mkt',\n    id: r.guid || r.link,\n    title: r.title,\n    company: (r.creator || '').trim() || 'unknown',\n    url: r.link,\n    location_raw: 'Worldwide',\n    work_policy: 'remote',\n    posted_date: r.isoDate || r.pubDate || new Date().toISOString(),\n    description_text: (r.content || r.contentSnippet || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n    visa_sponsorship: false,\n    heuristic_score: 0\n  }};\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        560
+      ],
+      "id": "b04fbdbe-bcf7-43f1-8527-00f33c4ab8c5",
+      "name": "WWR Marketing Mapper"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monthly thread; each top-level comment = one job post. Empty at month start = safe [].\nconst SOURCE = 'hn-whoishiring';\ntry {\n  const label = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });\n  const search = await this.helpers.httpRequest({ method: 'GET', json: true,\n    url: 'https://hn.algolia.com/api/v1/search?tags=story&query=' + encodeURIComponent('Ask HN: Who is hiring? ' + label) });\n  const hits = search.hits || [];\n  const story = hits.find(h => (h.title || '').includes(label)) || hits[0]; // prefer exact-month thread\n  if (!story) return [];\n  const thread = await this.helpers.httpRequest({ method: 'GET', json: true,\n    url: 'https://hn.algolia.com/api/v1/items/' + story.objectID });\n  return (thread.children || []).filter(c => c.text).slice(0, 40).map(c => {\n    const clean = c.text.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\n    const href = (c.text.match(/href=\"([^\"]+)\"/) || [])[1];\n    return { json: {\n      source: SOURCE, id: String(c.id), title: clean.slice(0, 120), company: 'unknown',\n      url: href || ('https://news.ycombinator.com/item?id=' + c.id),\n      location_raw: 'Worldwide',\n      work_policy: /remote|anywhere|worldwide/i.test(clean) ? 'remote' : 'unknown',\n      posted_date: c.created_at || story.created_at || new Date().toISOString(),\n      description_text: clean.slice(0, 6000), visa_sponsorship: false, heuristic_score: 0\n    }};\n  });\n} catch (e) {\n  // Never kill the run: marker item (no url) is dropped by Dedupe but counted in ops\n  return [{ json: { source: SOURCE, id: 'error', title: '', company: '', url: '',\n    location_raw: '', work_policy: 'unknown', posted_date: new Date().toISOString(),\n    description_text: '', visa_sponsorship: false, heuristic_score: 0,\n    __error: SOURCE + ': ' + String(e.message || e) } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        176
+      ],
+      "id": "82a4bbf8-2664-4988-9e9d-f21dbe565006",
+      "name": "HN Who is Hiring"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Himalayas — free public JSON API, no key. Queries come from the config tab.\nconst SOURCE = 'himalayas';\nlet QUERIES = [];\ntry {\n  const cfgQ = $('Load Config').first().json.config.himalayas_queries;\n  QUERIES = Array.isArray(cfgQ) ? cfgQ.map(q => (typeof q === 'string' ? q : q.q)).filter(Boolean) : [];\n} catch (e) { QUERIES = []; }\nif (!QUERIES.length) QUERIES = ['automation engineer', 'integration engineer', 'revenue operations'];\n\nconst seenGuids = new Set();\nconst out = [];\ntry {\n  for (const q of QUERIES) {\n    const res = await this.helpers.httpRequest({ method: 'GET', json: true,\n      url: 'https://himalayas.app/jobs/api/search?q=' + encodeURIComponent(q) + '&sort=recent&page=1' });\n    for (const j of (res.jobs || [])) {\n      if (seenGuids.has(j.guid)) continue;\n      seenGuids.add(j.guid);\n      const loc = (j.locationRestrictions || []).map(l => l.name).join(', ');\n      const posted = j.pubDate ? (j.pubDate > 1e12 ? new Date(j.pubDate) : new Date(j.pubDate * 1000)) : new Date();\n      out.push({ json: {\n        source: SOURCE, id: j.guid, title: j.title, company: j.companyName || 'unknown',\n        url: j.applicationLink || ('https://himalayas.app/jobs/' + (j.companySlug || '')),\n        location_raw: loc || 'Worldwide',\n        work_policy: 'remote',\n        posted_date: posted.toISOString(),\n        description_text: (j.description || j.excerpt || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 6000),\n        visa_sponsorship: false, heuristic_score: 0\n      }});\n    }\n  }\n  return out;\n} catch (e) {\n  return out.length ? out : [{ json: { source: SOURCE, id: 'error', title: '', company: '', url: '',\n    location_raw: '', work_policy: 'unknown', posted_date: new Date().toISOString(),\n    description_text: '', visa_sponsorship: false, heuristic_score: 0,\n    __error: SOURCE + ': ' + String(e.message || e) } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        -1056
+      ],
+      "id": "55294b42-73fb-4835-bece-1a8eb29ee564",
+      "name": "Himalayas1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Load Config (Code, run once for all items)\n// Input: \"Start Run\" -> { ctx: jr_start_run() result }. The config was validated by jr_validate_config()\n// when it was saved, so this node only fills safe fallbacks, computes source cadence, and keeps the\n// legacy keys the v1 source nodes still read (himalayas_queries, remocate_*, window_days).\nconst raw = $('Start Run').first().json.ctx;\nconst ctx = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});\nif (!ctx.run_id || !ctx.config) throw new Error('Start Run returned no run_id/config: is the schema applied?');\n\nconst warnings = [];\nconst cfg = ctx.config;\nconst num = (v, fb, key) => { const n = Number(v); if (!Number.isFinite(n)) { warnings.push(key + ':fallback'); return fb; } return n; };\n\ncfg.freshness = cfg.freshness || {};\ncfg.freshness.window_days = num(cfg.freshness.window_days, 7, 'freshness.window_days');\ncfg.llm = Object.assign({ slice_cap: 40, detail_cap: 40, max_per_source: 12, pace_ms: 15000, max_desc_chars: 3500 }, cfg.llm || {});\ncfg.scoring = cfg.scoring || {};\ncfg.scoring.weights = Object.assign({ match: 0.4, filterFit: 0.25, feasibility: 0.2, recency: 0.15 }, cfg.scoring.weights || {});\ncfg.sources = cfg.sources || {};\n\n// Cadence: weekly sources run when they have not fetched anything for 6 days.\nconst lastOk = ctx.last_ok || {};\nconst due = {};\nconst isDue = (key, cadence) => {\n  if (cadence !== 'weekly') return true;\n  const t = lastOk[key] ? new Date(lastOk[key]).getTime() : 0;\n  return !t || (Date.now() - t) > 6 * 86400000;\n};\nfor (const [key, s] of Object.entries(cfg.sources)) {\n  if (key === 'boards') continue;\n  due[key] = !!(s && s.enabled) && isDue(key, s && s.cadence);\n}\nfor (const b of (cfg.sources.boards || [])) due[b.key] = !!b.enabled && isDue(b.key, b.cadence);\n\n// Legacy aliases read by unchanged v1 nodes (Himalayas1, Remocate Mapper).\nconst S = cfg.sources;\nconst config = Object.assign({}, cfg, {\n  window_days: cfg.freshness.window_days,\n  himalayas_queries: (S.himalayas && S.himalayas.queries) || [],\n  remocate_enabled: !!(S.remocate && S.remocate.enabled),\n  remocate_categories: (S.remocate && S.remocate.categories) || ['sales', 'marketing', 'analytics', 'manager'],\n  revops_enabled: !!(S.revopsroles && S.revopsroles.enabled),\n  arbeitnow_visa_only: !!(S.arbeitnow && S.arbeitnow.visa_only)\n});\n\nreturn [{ json: {\n  run_id: Number(ctx.run_id), rev: ctx.rev, trigger: ctx.trigger, started_at: ctx.started_at,\n  config, due, warnings\n} }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -1056
+      ],
+      "id": "21f68333-59c0-4c46-ad14-e426076fe1f3",
+      "name": "Load Config",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 7-22 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -480,
+        384
+      ],
+      "id": "624c281a-d245-46a6-bac5-76bc65d0d778",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://revopsroles.com/api/jobs?work_mode=remote&sort=posted_at:desc&hitsPerPage=100",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "JobRadar/1.0 (mohamedlandolsi300@gmail.com)"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json, text/plain, */*"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -80,
+        752
+      ],
+      "id": "a81e31d4-d3bf-429b-82fc-5b2e3c2cc64b",
+      "name": "RevOps Roles",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const CFG = $('Load Config').first().json.config;\nif (CFG.revops_enabled === false) return [];                // config kill-switch\nconst cutoff = Date.now() - CFG.window_days * 86400000;\nconst cats = new Set(CFG.revops_categories || []);\n// Structured deterministic vetoes — free, pre-slice, from the API's own classified fields\nconst SENIORITY_VETO = ['senior', 'manager', 'vp', 'director', 'c-level'];\nconst FLAG_VETO = ['quota-carrying', 'commission-based'];\nconst MAX_EXP_MIN = 4;                                      // 4+ yrs required ≠ entry/junior profile\nconst seenIds = new Set();\nconst out = [];\nfor (const item of $input.all()) {\n  for (const j of ((item.json && item.json.hits) || [])) {\n    if (!j || !j.id || !j.title || seenIds.has(j.id)) continue;\n    seenIds.add(j.id);\n    if (j.is_sponsored) continue;                            // paid placement, not organic\n    const posted = Number(j.posted_at) || 0;\n    const postedMs = posted > 1e12 ? posted : posted * 1000; // epoch seconds vs ms quirk\n    if (!postedMs || postedMs < cutoff) continue;            // window filter, client-side\n    if (j.work_mode !== 'remote') continue;\n    if (cats.size && !cats.has(j.category)) continue;        // ICP categories only\n    if (SENIORITY_VETO.includes(String(j.seniority || '').toLowerCase())) continue;\n    if ((Number(j.experience_years_min) || 0) >= MAX_EXP_MIN) continue;\n    if ((j.red_flags || []).some(f => FLAG_VETO.includes(String(f).toLowerCase()))) continue;\n    const salary = (j.salary_min || j.salary_max)\n      ? (j.salary_min || '?') + '–' + (j.salary_max || '?') + ' ' + (j.salary_currency || '')\n      : 'not listed';\n    out.push({ json: {\n      source: 'revopsroles',\n      id: String(j.id),\n      title: j.title,\n      company: j.company_name || 'unknown',\n      url: j.source_url || ('https://revopsroles.com/jobs/' + j.id),\n      location_raw: j.location_raw || 'Worldwide',\n      work_policy: 'remote',\n      posted_date: new Date(postedMs).toISOString(),\n      description_text: [\n        'Title: ' + j.title,\n        'Company: ' + (j.company_name || 'unknown') + ' (size: ' + (j.company_size || 'unknown') + ', industry: ' + (j.industry || 'unknown') + ')',\n        'Category: ' + j.category + ' | Seniority: ' + j.seniority + ' | Experience: ' + (j.experience_years_min || 0) + '-' + (j.experience_years_max || 'n/a') + ' years',\n        'Work mode: ' + j.work_mode + ' | Employment type: ' + (j.employment_type || 'unknown') + ' | Location: ' + (j.location_raw || 'unknown'),\n        'Tools: ' + ((j.tools || []).join(', ') || 'not listed'),\n        'Salary: ' + salary + ' | Comp structure: ' + (j.comp_structure || 'unknown'),\n        'Red flags: ' + ((j.red_flags || []).join(', ') || 'none'),\n        'Visa sponsorship: ' + (j.visa_sponsorship === true ? 'yes' : j.visa_sponsorship === false ? 'no' : 'unknown'),\n        'Uses AI tools: ' + (j.uses_ai_tools === true ? 'yes' : 'unknown')\n      ].join('\\n').slice(0, 6000),\n      visa_sponsorship: j.visa_sponsorship === true,\n      heuristic_score: 0\n    }});\n  }\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        752
+      ],
+      "id": "620e266e-a803-4b9b-81e2-19bcc6b569d6",
+      "name": "RevOps Roles Mapper"
+    },
+    {
+      "parameters": {
+        "url": "https://r.jina.ai/https://community.clay.com/x/share-jobs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "JobRadar/1.0 (mohamedlandolsi300@gmail.com)"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -80,
+        944
+      ],
+      "id": "416bc8c6-d3e7-4f6d-ad01-f080a5560680",
+      "name": "Clay Community",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Clay Community (Tightknit SPA) via Jina Reader rendered-markdown bridge — ADR-JR-15\nconst SOURCE = 'clay-community';\nconst rawIn = $input.first().json;\nconst md = typeof rawIn.data === 'string' ? rawIn.data : (typeof rawIn.content === 'string' ? rawIn.content : (typeof rawIn.text === 'string' ? rawIn.text : ''));\nconst errItem = msg => [{ json: { source: SOURCE, id: 'error', title: '', company: '', url: '',\n  location_raw: '', work_policy: 'unknown', posted_date: new Date().toISOString(),\n  description_text: '', visa_sponsorship: false, heuristic_score: 0, __error: SOURCE + ': ' + msg } }];\nif (md.length < 500) return errItem('empty/unsupported reader payload (' + md.length + ' chars)');\n\nconst linkRe = /\\[([^\\]\\n]{8,140})\\]\\((https:\\/\\/community\\.clay\\.com\\/x\\/share-jobs\\/[^)\\s]+)\\)/g;\nconst seen = new Set(); const posts = []; let m;\nwhile ((m = linkRe.exec(md)) !== null) {\n  if (seen.has(m[2])) continue;\n  seen.add(m[2]);\n  posts.push({ title: m[1].trim(), url: m[2], start: m.index });\n}\nif (!posts.length) return errItem('no post links parsed — page format changed?');\n\nconst now = Date.now();\nconst ago = chunk => {\n  const t = chunk.match(/(\\d+)\\s*(minute|min|hour|hr|day|week|month)s?\\s*ago/i);\n  if (!t) return new Date(now).toISOString();\n  const n = Number(t[1]); const u = t[2].toLowerCase();\n  const mult = u.startsWith('min') ? 60000 : u.startsWith('h') ? 3600000 : u.startsWith('d') ? 86400000 : u.startsWith('w') ? 604800000 : 2592000000;\n  return new Date(now - n * mult).toISOString();\n};\n\nconst out = [];\nfor (let i = 0; i < posts.length && out.length < 30; i++) {\n  const p = posts[i];\n  const end = i + 1 < posts.length ? posts[i + 1].start : md.length;\n  const chunk = md.slice(p.start, end);\n  const body = chunk.replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1').replace(/<[^>]*>/g, ' ')\n    .replace(/[#>*_`|]+/g, ' ').replace(/\\s+/g, ' ').trim();\n  const title = p.title.replace(/<[^>]*>/g, '').trim();\n  if (/looking for work|hire me|available for hire|open to work|seeking (a )?(new )?role|my services/i.test(title + ' ' + body.slice(0, 300))) continue; // freelancer pitches, not jobs\n  out.push({ json: {\n    source: SOURCE, id: p.url, title, company: 'unknown', url: p.url,\n    location_raw: 'Worldwide',\n    work_policy: /remote|worldwide|anywhere|emea|europe/i.test(body) ? 'remote' : 'unknown',\n    posted_date: ago(chunk),\n    description_text: (title + '. ' + body).slice(0, 6000),\n    visa_sponsorship: false, heuristic_score: 0\n  }});\n}\nreturn out.length ? out : errItem('links found but all vetoed/empty');"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        944
+      ],
+      "id": "a511fbe9-08fb-44a9-8a4c-341815f3522a",
+      "name": "Clay Mapper"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        816,
+        -144
+      ],
+      "id": "20fae870-41e3-4ff9-800b-15307d8a4619",
+      "name": "Merge Final"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        576,
+        96
+      ],
+      "id": "7d069aa6-c4ae-4507-986a-86109ece5f9a",
+      "name": "Merge Forums"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Remocate (Source #12) — Jina Reader bridge over category pages. ADR-JR-16.\n// Fetches 4 category pages, parses inline JDs using date anchors. 4 requests/run.\nconst CFG = $('Load Config').first().json.config;\nif (CFG.remocate_enabled === false) return [];\n\nconst CATS = CFG.remocate_categories || ['sales', 'marketing', 'analytics', 'manager'];\nconst cutoff = Date.now() - CFG.window_days * 86400000;\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\n\nconst errItem = msg => [{ json: { \n  source: 'remocate', id: 'error', title: '', company: '', url: '',\n  location_raw: '', work_policy: 'unknown', posted_date: new Date().toISOString(),\n  description_text: '', visa_sponsorship: false, heuristic_score: 0, \n  __error: 'remocate: ' + msg \n}}];\n\nconst clean = s => (s || '').replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1').replace(/<[^>]*>/g, ' ')\n  .replace(/[#>*_`|]+/g, ' ').replace(/\\s+/g, ' ').trim();\n\nconst out = []; \nconst seenUrls = new Set();\nlet fetchFails = 0, marksFound = 0;\n\nfor (const cat of CATS) {\n  let md = '';\n  try {\n    const res = await this.helpers.httpRequest({ \n      method: 'GET', json: true,\n      url: 'https://r.jina.ai/https://www.remocate.app/job-categories/' + cat \n    });\n    md = typeof res.content === 'string' ? res.content : (typeof res.data === 'string' ? res.data : '');\n  } catch (e) { fetchFails++; continue; }\n  \n  if (md.length < 500) { fetchFails++; continue; }\n\n  // Find date anchors (MM/DD/YYYY) which mark the end of a job's meta-line\n  const dateRe = /(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/g; \n  let m; \n  const marks = [];\n  while ((m = dateRe.exec(md)) !== null) {\n    marks.push({ mm: +m[1], dd: +m[2], yy: +m[3], idx: m.index, end: m.index + m[0].length });\n  }\n  marksFound += marks.length;\n\n  for (let i = 0; i < marks.length && out.length < 40; i++) {\n    const lineStart = md.lastIndexOf('\\n', marks[i].idx) + 1;\n    const metaLine = md.slice(lineStart, marks[i].end);\n    const nextStart = i + 1 < marks.length ? md.lastIndexOf('\\n', marks[i + 1].idx) + 1 : md.length;\n    const body = md.slice(marks[i].end, nextStart);\n    \n    const posted = Date.UTC(marks[i].yy, marks[i].mm - 1, marks[i].dd);\n    if (!posted || posted < cutoff) continue; // Older than window_days\n\n    const urlM = (metaLine + body).match(/https:\\/\\/www\\.remocate\\.app\\/jobs\\/[A-Za-z0-9-]+/);\n    if (!urlM || seenUrls.has(urlM[0])) continue;\n    seenUrls.add(urlM[0]);\n\n    let title = '', company = 'unknown';\n    const tc = metaLine.match(/^\\s*([^\\n•]+?)\\s•\\s(.+)$/);\n    if (tc) {\n      title = clean(tc[1]);\n      const cut = tc[2].search(/(Contract based|Full-time|Part-time|Internship|Freelance|Contract)\\b|[\\u{1F1E6}-\\u{1F1FF}]{2}|📞|🌟|📍/u);\n      company = clean(cut > 0 ? tc[2].slice(0, cut) : tc[2].slice(0, 40)) || 'unknown';\n    }\n    \n    const headTitle = body.match(/^##+\\s*(.+)$/m);\n    if (headTitle) title = clean(headTitle[1]) || title;\n\n    const countryM = metaLine.match(/[\\u{1F1E6}-\\u{1F1FF}]{2}\\s*([^📞🏠•]+?)(?=\\s*(?:📞|🌟|$))/u);\n    const salaryM = metaLine.match(/\\$[\\d,]+(?:\\s*[–-]\\s*\\$[\\d,]+)?/g);\n    const empM = metaLine.match(/(Contract based|Full-time|Part-time|Internship|Freelance|Contract)\\b/);\n\n    out.push({ json: {\n      source: 'remocate', id: urlM[0], title: title || 'unknown role', company,\n      url: urlM[0],\n      location_raw: countryM ? countryM[1].trim() : 'Worldwide',\n      work_policy: /🏠\\s*Remote|\\bRemote\\b/i.test(metaLine) ? 'remote' : 'unknown',\n      posted_date: new Date(posted).toISOString(),\n      description_text: clean([\n        'Title: ' + title, 'Company: ' + company,\n        'Type: ' + (empM ? empM[1] : 'unknown'),\n        'Salary: ' + (salaryM ? salaryM.join(' – ') : 'not listed'),\n        clean(body)\n      ].join('\\n')).slice(0, 6000),\n      visa_sponsorship: /sponsor|relocation support|visa/i.test(metaLine + body),\n      heuristic_score: 0\n    }});\n  }\n  await sleep(1500); // Politeness between category pages\n}\n\nif (out.length) return out;\nif (fetchFails === CATS.length) return errItem('all category fetches failed (Jina down/rate-limited)');\nif (marksFound === 0) return errItem('format changed: no date anchors found');\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        1136
+      ],
+      "id": "7a044f30-7baa-4792-b694-753a33198aa5",
+      "name": "Remocate Mapper"
+    },
+    {
+      "id": "5920e932-a8b9-4992-8f62-19831ea319de",
+      "name": "Should Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -480,
+        576
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {},
+        "query": "select jr_should_run('Africa/Tunis') as go;"
+      },
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "name": "Neon Job Radar"
+        }
+      }
+    },
+    {
+      "id": "2b2d0662-b927-4564-a091-6b1148d3645a",
+      "name": "Go?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -288,
+        576
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "go-not-none",
+              "leftValue": "={{ $json.go }}",
+              "operator": {
+                "operation": "notEquals",
+                "type": "string"
+              },
+              "rightValue": "none"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "61cc821b-cd04-485e-ac61-bf1704387464",
+      "name": "Start Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -288,
+        -272
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $('Should Run').isExecuted ? $('Should Run').first().json.go : 'manual' ] }}"
+        },
+        "query": "select jr_start_run($1::text) as ctx;"
+      },
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "name": "Neon Job Radar"
+        }
+      }
+    },
+    {
+      "id": "477f08fa-499d-4442-9df2-f2285b63c13a",
+      "name": "Src LinkedIn",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        1328
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Src LinkedIn (Code, run once for all items)\n// LinkedIn public guest endpoint (no login, no cookies, $0). The laptop's residential IP is the\n// reason this works: keep it to <= 20 list requests a run (enforced in jr_validate_config).\n// Descriptions are fetched later by \"Detail Fetch\", only for postings that survive gate A and dedupe.\nconst SOURCE = 'linkedin';\nconst L = $('Load Config').first().json;\nconst S = (L.config.sources || {})[SOURCE] || {};\nif (!S.enabled || S.mode !== 'guest' || L.due[SOURCE] === false) return [{ json: { source: SOURCE, __skip: 'disabled_or_not_due' } }];\n\nconst UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';\nconst WT = { onsite: 1, remote: 2, hybrid: 3 };\nconst EXP = { internship: 1, entry: 2, associate: 3, mid_senior: 4, director: 5, executive: 6 };\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\nconst decode = s => String(s || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')\n  .replace(/&quot;/g, '\"').replace(/&#39;|&#x27;/g, \"'\").replace(/&nbsp;/g, ' ');\nconst strip = s => decode(String(s || '').replace(/<[^>]*>/g, ' ')).replace(/\\s+/g, ' ').trim();\nconst pick = (html, re) => { const m = html.match(re); return m ? strip(m[1]) : ''; };\n\nconst windowSec = Math.max(1, Math.min(30, Number(L.config.freshness.window_days) || 7)) * 86400;\nconst out = [];\nconst seen = new Set();\nlet requests = 0, blocked = false, lastError = '';\n\nfor (const s of (S.searches || [])) {\n  if (blocked) break;\n  const modes = (s.work_types || []).filter(w => WT[w]);\n  const mode = modes.length === 1 ? modes[0] : 'unknown';\n  for (let page = 0; page < Math.min(3, Number(S.max_pages) || 1); page++) {\n    // Built by hand: the n8n Code-node sandbox has no URLSearchParams.\n    const params = [['keywords', s.keywords], ['location', s.location || 'Worldwide'], ['f_TPR', 'r' + windowSec],\n                    ['sortBy', 'DD'], ['start', String(page * 10)]];\n    if (modes.length) params.push(['f_WT', modes.map(w => WT[w]).join(',')]);\n    const exps = (s.experience || []).map(e => EXP[e]).filter(Boolean);\n    if (exps.length) params.push(['f_E', exps.join(',')]);\n    const qs = params.map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');\n    let html = '';\n    try {\n      requests++;\n      html = String(await this.helpers.httpRequest({\n        method: 'GET',\n        url: 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?' + qs,\n        headers: { 'User-Agent': UA, 'Accept-Language': 'en-US,en;q=0.9', 'Accept': 'text/html' },\n        json: false, timeout: 20000\n      }));\n    } catch (e) {\n      lastError = String(e.message || e).slice(0, 160);\n      if (/429|999|403/.test(lastError)) blocked = true;   // LinkedIn throttled this IP: stop for today\n      break;\n    }\n    const cards = html.split(/<li[\\s>]/).slice(1);\n    if (!cards.length) break;\n    for (const c of cards) {\n      const id = (c.match(/urn:li:jobPosting:(\\d+)/) || c.match(/\\/jobs\\/view\\/[^\"?]*?-(\\d{6,})/) || [])[1];\n      if (!id || seen.has(id)) continue;\n      seen.add(id);\n      const dt = (c.match(/<time[^>]*datetime=\"(\\d{4}-\\d{2}-\\d{2})\"/) || [])[1];\n      out.push({ json: {\n        source: SOURCE, source_id: id,\n        title: pick(c, /base-search-card__title[^>]*>([\\s\\S]*?)<\\/h3>/),\n        company: pick(c, /base-search-card__subtitle[^>]*>([\\s\\S]*?)<\\/h4>/) || 'unknown',\n        url: 'https://www.linkedin.com/jobs/view/' + id + '/',\n        location_raw: pick(c, /job-search-card__location[^>]*>([\\s\\S]*?)<\\/span>/),\n        work_mode: mode,\n        posted_date: dt ? new Date(dt + 'T12:00:00Z').toISOString() : new Date().toISOString(),\n        posted_estimated: !dt,\n        description_text: '',\n        needs_detail: !!S.detail,\n        detail: { mode: 'linkedin', id },\n        search: s.keywords\n      } });\n    }\n    if (cards.length < 10) break;\n    await sleep(2500);\n  }\n  await sleep(2500);\n}\n\nif (!out.length) {\n  return [{ json: { source: SOURCE, __error: SOURCE + ': ' + (lastError || 'no cards parsed (' + requests + ' requests): markup changed or no results') } }];\n}\nif (lastError) out.push({ json: { source: SOURCE, __error: SOURCE + ': partial, ' + lastError } });\nreturn out;\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "adcb8267-662b-4e19-b2e8-1d0844ebab75",
+      "name": "Src Boards",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        1520
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Src Boards (Code, run once for all items)\n// Generic \"Jina Reader bridge\" for job boards without an API (ADR-JR-29). Each board is DATA in the\n// config (list_urls + job_url_regex), edited from the console: fixing a board never needs a code change.\n// r.jina.ai renders JavaScript pages (headless browser) and returns markdown. Free without a key at\n// 20 requests/minute per IP, so requests are paced at 3.5 s. Set JINA_API_KEY in n8n env to go faster.\nconst L = $('Load Config').first().json;\nconst boards = ((L.config.sources || {}).boards || []).filter(b => b.enabled && L.due[b.key] !== false);\nif (!boards.length) return [{ json: { source: 'boards', __skip: 'none_enabled_or_due' } }];\n\nlet JINA_KEY = '';\ntry { JINA_KEY = $env.JINA_API_KEY || ''; } catch (e) { JINA_KEY = ''; }\nconst headers = { 'Accept': 'application/json', 'X-Timeout': '25', 'X-Return-Format': 'markdown' };\nif (JINA_KEY) headers.Authorization = 'Bearer ' + JINA_KEY;\nconst PACE = JINA_KEY ? 800 : 3500;\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\n\nconst GENERIC = /^(apply( now)?|view( job| role| details)?|see (job|more|details)|learn more|details|read more|open|new|featured|save|share)$/i;\nconst cleanText = s => String(s || '')\n  .replace(/!\\[[^\\]]*\\]\\([^)]*\\)/g, ' ')            // images\n  .replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1')           // nested links\n  .replace(/[#>*_`|]+/g, ' ').replace(/\\\\/g, '').replace(/\\s+/g, ' ').trim();\n\n// \"3d ago\", \"8h ago\", \"today\", \"Oct 24\", \"2026-10-24\" -> ISO date, else null\nconst parseWhen = (text) => {\n  const t = String(text || '').toLowerCase();\n  const now = Date.now();\n  let m = t.match(/\\b(\\d{1,3})\\s*(m|min|mins|minutes?|h|hr|hrs|hours?|d|days?|w|wk|weeks?|mo|months?)\\b\\.?\\s*ago/);\n  if (m) {\n    const n = Number(m[1]); const u = m[2];\n    const ms = /^m(in|ins|inutes?)?$/.test(u) ? 60e3 : /^h/.test(u) ? 3600e3 : /^d/.test(u) ? 86400e3 : /^w/.test(u) ? 7 * 86400e3 : 30 * 86400e3;\n    return new Date(now - n * ms).toISOString();\n  }\n  if (/\\b(just now|today|new)\\b/.test(t)) return new Date(now).toISOString();\n  if (/\\byesterday\\b/.test(t)) return new Date(now - 86400e3).toISOString();\n  m = t.match(/\\b(20\\d\\d-\\d\\d-\\d\\d)\\b/);\n  if (m) return new Date(m[1] + 'T12:00:00Z').toISOString();\n  m = t.match(/\\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?\\s+(\\d{1,2})(?:,?\\s+(20\\d\\d))?\\b/);\n  if (m) {\n    const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };\n    const y = m[3] ? Number(m[3]) : new Date().getUTCFullYear();\n    let d = Date.UTC(y, months[m[1]], Number(m[2]), 12);\n    if (!m[3] && d > now + 2 * 86400e3) d = Date.UTC(y - 1, months[m[1]], Number(m[2]), 12);\n    return new Date(d).toISOString();\n  }\n  return null;\n};\n// Last resort: \"/job/acme-gtm-engineer-berlin/\" -> \"acme gtm engineer berlin\"\nconst slugTitle = u => {\n  const parts = String(u).split('?')[0].replace(/\\/+$/, '').split('/');\n  const slug = decodeURIComponent(parts[parts.length - 1] || '');\n  // Trailing ids are dropped only when they contain a digit (\"-rec0lebnhiss\", \"-dvs9j7\"), never words like \"-remote\".\n  return /[a-z]{3,}-[a-z]{3,}/i.test(slug) ? slug.replace(/-(?:rec)?(?=[a-z0-9]*\\d)[a-z0-9]{6,}$/i, '').replace(/[-_]+/g, ' ').trim() : '';\n};\nconst modeOf = t => /\\bhybrid\\b/i.test(t) ? 'hybrid' : /\\b(remote|anywhere|worldwide|work from home|fully remote)\\b/i.test(t) ? 'remote'\n  : /\\b(on[- ]?site|in[- ]office|onsite)\\b/i.test(t) ? 'onsite' : 'unknown';\nconst seniorityOf = t => {\n  const m = String(t || '').match(/\\b(entry[- ]level|junior|intern(ship)?|mid[- ]level|senior|lead|staff\\+?|exec(utive)?|director)\\b/i);\n  return m ? m[1].toLowerCase().replace(/\\s+/g, '-') : '';\n};\n\nconst out = [];\nfor (const b of boards) {\n  let urlRe;\n  try { urlRe = new RegExp('^(?:' + b.job_url_regex + ')', 'i'); }\n  catch (e) { out.push({ json: { source: b.key, __error: b.key + ': bad job_url_regex (' + e.message + ')' } }); continue; }\n  const seenUrl = new Set();\n  let pages = 0, fails = 0, links = 0, lastErr = '';\n  for (const listUrl of (b.list_urls || [])) {\n    if (out.filter(i => i.json.source === b.key && i.json.url).length >= b.max_items) break;\n    let md = '';\n    try {\n      const res = await this.helpers.httpRequest({ method: 'GET', url: 'https://r.jina.ai/' + listUrl, headers, json: true, timeout: 45000 });\n      md = typeof res === 'string' ? res : String((res && res.data && res.data.content) || (res && res.content) || '');\n      pages++;\n    } catch (e) { fails++; lastErr = String(e.message || e).slice(0, 140); await sleep(PACE); continue; }\n    const linkRe = /\\[((?:[^\\[\\]]|\\[[^\\]]*\\])*)\\]\\((https?:\\/\\/[^)\\s]+)(?:\\s+\"[^\"]*\")?\\)/g;\n    const found = [];\n    let m;\n    while ((m = linkRe.exec(md)) !== null) {\n      const href = m[2].replace(/[.,;]+$/, '');\n      if (!urlRe.test(href)) continue;\n      links++;\n      found.push({ text: m[1], href, start: m.index, end: linkRe.lastIndex });\n    }\n    for (let i = 0; i < found.length; i++) {\n      const f = found[i];\n      const url = f.href.split('#')[0];\n      if (seenUrl.has(url)) continue;\n      // Logo/image links carry no text: let a later link to the same job supply the title.\n      if (!cleanText(f.text) && found.slice(i + 1).some(g => g.href.split('#')[0] === url && cleanText(g.text))) continue;\n      const ctxEnd = i + 1 < found.length ? found[i + 1].start : Math.min(md.length, f.end + 500);\n      const context = cleanText(md.slice(f.end, Math.min(ctxEnd, f.end + 500)));\n      let title = cleanText(f.text);\n      if (!title || GENERIC.test(title)) title = slugTitle(url);           // slug beats neighbouring card text\n      if (!title || GENERIC.test(title)) {\n        const before = cleanText(md.slice(Math.max(0, f.start - 300), f.start)).split(/\\s{2,}|\\n/).filter(Boolean);\n        title = before.length ? before[before.length - 1].slice(-160) : '';\n      }\n      title = title.replace(/\\s+(?:\\d{1,3}\\s*(?:m|min|h|hr|d|w|mo)[a-z]*\\s+ago|today|yesterday|new|featured)\\b.*$/i, '').trim();\n      if (!title || GENERIC.test(title)) continue;\n      seenUrl.add(url);\n      const blob = title + ' ' + context;\n      const posted = parseWhen(blob);\n      out.push({ json: {\n        source: b.key, source_id: url, title: title.slice(0, 220), company: 'unknown', url,\n        location_raw: '', work_mode: modeOf(blob), seniority_hint: seniorityOf(blob),\n        posted_date: posted || new Date().toISOString(), posted_estimated: !posted,\n        description_text: '', list_context: context.slice(0, 400),\n        needs_detail: b.detail === 'jina', detail: { mode: b.detail === 'jina' ? 'jina' : 'none', url }\n      } });\n      if (seenUrl.size >= b.max_items) break;\n    }\n    await sleep(PACE);\n  }\n  if (!seenUrl.size) {\n    out.push({ json: { source: b.key, __error: b.key + ': ' + (fails ? 'fetch failed on ' + fails + ' page(s): ' + lastErr\n      : 'parser_no_links (' + pages + ' page(s), regex matched ' + links + ' links): fix job_url_regex in the console') } });\n  }\n}\nreturn out;\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "fd6f98f9-de02-4eed-b7dc-07314540a77a",
+      "name": "Reddit Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        1712
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Reddit Queries (Code, run once for all items)\n// Reddit closed self-serve API keys (Nov 2025), blocks logged-out .json (since May 2026) and ends RSS on\n// 2026-11-13. So Reddit is read through a search index instead: Tavily, already in your n8n credentials.\n// One item per query -> \"Tavily Search\" (HTTP Request, credential \"Tavily Header Auth\") -> \"Reddit Mapper\".\n// Budget: 1 credit per basic search; 6 queries x 30 days = 180 of the 1,000 free monthly credits.\nconst L = $('Load Config').first().json;\nconst S = (L.config.sources || {}).reddit || {};\nif (!S.enabled || S.mode !== 'tavily' || L.due.reddit === false) return [];   // branch stops; Merge New still runs\n\nconst queries = (S.queries || []).slice(0, Math.max(0, Number(S.max_queries) || 0));\nreturn queries.map(q => ({ json: {\n  query: q,\n  body: {\n    query: q,\n    search_depth: 'basic',\n    topic: 'general',\n    time_range: S.time_range === 'week' ? 'week' : 'day',\n    max_results: 10,\n    include_domains: ['reddit.com'],\n    include_answer: false,\n    include_raw_content: false\n  }\n} }));\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "1f01012e-8489-4764-9f64-4b18894fe8c5",
+      "name": "Tavily Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        144,
+        1712
+      ],
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "contentType": "json",
+        "genericAuthType": "httpHeaderAuth",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "method": "POST",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchInterval": 1500,
+              "batchSize": 1
+            }
+          },
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "url": "https://api.tavily.com/search"
+      },
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Tavily Header Auth"
+        }
+      }
+    },
+    {
+      "id": "b86490a3-ee29-47f0-a2ac-96b595dff887",
+      "name": "Reddit Mapper",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        1712
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Reddit Mapper (Code, run once for all items)\n// Input: one Tavily response per query (HTTP node \"Tavily Search\", On Error = Continue).\n// Keeps only posts from the configured subreddits, canonicalises the URL, and tags \"[For Hire]\" offers\n// (people selling services) so gate A drops them with a visible reason instead of silently.\nconst SOURCE = 'reddit';\nconst L = $('Load Config').first().json;\nconst S = (L.config.sources || {}).reddit || {};\nconst subs = new Set((S.subreddits || []).map(s => String(s).toLowerCase().replace(/^r\\//, '')));\nconst queries = $('Reddit Queries').all().map(i => i.json.query);\n\nconst out = [];\nconst seen = new Set();\nconst errors = [];\n$input.all().forEach((it, idx) => {\n  const res = it.json || {};\n  if (res.error || !Array.isArray(res.results)) {\n    errors.push((queries[idx] || 'query ' + idx) + ': ' + String((res.error && (res.error.message || res.error)) || 'no results field').slice(0, 120));\n    return;\n  }\n  for (const r of res.results) {\n    const m = String(r.url || '').match(/reddit\\.com\\/r\\/([A-Za-z0-9_]+)\\/comments\\/([a-z0-9]+)/i);\n    if (!m) continue;\n    if (subs.size && !subs.has(m[1].toLowerCase())) continue;\n    const url = 'https://www.reddit.com/r/' + m[1] + '/comments/' + m[2] + '/';\n    if (seen.has(url)) continue;\n    seen.add(url);\n    const title = String(r.title || '').replace(/\\s*:\\s*r\\/\\w+\\s*$/i, '').replace(/\\s*[-|]\\s*reddit\\s*$/i, '').trim();\n    const text = String(r.content || '').replace(/\\s+/g, ' ').trim();\n    const forHire = /\\[\\s*for\\s*hire\\s*\\]|^\\s*for\\s*hire\\b|\\(for hire\\)/i.test(title);\n    const hiring = /\\[\\s*hiring\\s*\\]|\\bhiring\\b|\\blooking for\\b|\\bneed(ed)?\\b|\\bseeking\\b|\\bwanted\\b|\\bpaid\\b/i.test(title + ' ' + text.slice(0, 300));\n    out.push({ json: {\n      source: SOURCE, source_id: m[2], title: title.slice(0, 220), company: 'r/' + m[1], url,\n      location_raw: /\\bremote\\b/i.test(title + ' ' + text) ? 'Remote' : '',\n      work_mode: /\\bremote\\b/i.test(title + ' ' + text) ? 'remote' : 'unknown',\n      kind: 'gig',\n      posted_date: new Date().toISOString(), posted_estimated: true,   // time_range=day bounds the age\n      description_text: (title + '\\n' + text).slice(0, 6000),\n      needs_detail: false,\n      gate_hint: forHire ? 'reddit_for_hire' : (hiring ? '' : 'reddit_not_hiring'),\n      subreddit: m[1]\n    } });\n  }\n});\nif (errors.length && !out.length) return [{ json: { source: SOURCE, __error: SOURCE + ': ' + errors.join(' | ').slice(0, 300) } }];\nif (errors.length) out.push({ json: { source: SOURCE, __error: SOURCE + ': partial, ' + errors.join(' | ').slice(0, 300) } });\nif (!out.length) return [{ json: { source: SOURCE, __skip: 'no_results' } }];\nreturn out;\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "523a41b3-5372-4562-89a2-e4efeaa94991",
+      "name": "Src ATS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        1904
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Src ATS (Code, run once for all items)\n// Company watchlist read straight from public ATS job-board APIs (no key, stable JSON, full descriptions):\n//   Greenhouse  https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true\n//   Lever       https://api.lever.co/v0/postings/{token}?mode=json\n//   Ashby       https://api.ashbyhq.com/posting-api/job-board/{token}\n// Companies live in config sources.ats.companies [{name, ats, token}] and are edited in the console.\nconst SOURCE = 'ats';\nconst L = $('Load Config').first().json;\nconst S = (L.config.sources || {})[SOURCE] || {};\nif (!S.enabled || L.due[SOURCE] === false) return [{ json: { source: SOURCE, __skip: 'disabled_or_not_due' } }];\nconst companies = S.companies || [];\nif (!companies.length) return [{ json: { source: SOURCE, __skip: 'no_companies' } }];\n\nconst cutoff = Date.now() - (Number(L.config.freshness.window_days) || 7) * 86400000;\nconst cap = Number(S.max_per_company) || 30;\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\nconst decode = s => String(s || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"')\n  .replace(/&#39;|&#x27;/g, \"'\").replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');\nconst strip = s => decode(decode(String(s || ''))).replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\nconst mode = (wt, remote, loc) => {\n  const w = String(wt || '').toLowerCase();\n  if (w.includes('hybrid')) return 'hybrid';\n  if (w.includes('remote') || remote === true) return 'remote';\n  if (w.includes('onsite') || w.includes('on-site') || w.includes('in office')) return 'onsite';\n  return /\\bremote\\b/i.test(loc || '') ? 'remote' : (/\\bhybrid\\b/i.test(loc || '') ? 'hybrid' : 'unknown');\n};\n\nconst out = [];\nconst errors = [];\nfor (const c of companies) {\n  try {\n    let rows = [];\n    if (c.ats === 'greenhouse') {\n      const r = await this.helpers.httpRequest({ method: 'GET', json: true, timeout: 20000,\n        url: 'https://boards-api.greenhouse.io/v1/boards/' + encodeURIComponent(c.token) + '/jobs?content=true' });\n      rows = (r.jobs || []).map(j => ({\n        id: String(j.id), title: j.title, url: j.absolute_url, loc: (j.location && j.location.name) || '',\n        posted: j.first_published || j.updated_at, desc: strip(j.content), wm: mode('', null, (j.location && j.location.name) || '')\n      }));\n    } else if (c.ats === 'lever') {\n      const r = await this.helpers.httpRequest({ method: 'GET', json: true, timeout: 20000,\n        url: 'https://api.lever.co/v0/postings/' + encodeURIComponent(c.token) + '?mode=json' });\n      rows = (Array.isArray(r) ? r : []).map(j => ({\n        id: j.id, title: j.text, url: j.hostedUrl, loc: (j.categories && j.categories.location) || '',\n        posted: j.createdAt, emp: j.categories && j.categories.commitment,\n        desc: strip([j.descriptionPlain || j.description, ...(j.lists || []).map(l => l.text + ': ' + strip(l.content)), j.additionalPlain].join(' ')),\n        wm: mode(j.workplaceType, null, (j.categories && j.categories.location) || '')\n      }));\n    } else if (c.ats === 'ashby') {\n      const r = await this.helpers.httpRequest({ method: 'GET', json: true, timeout: 20000,\n        url: 'https://api.ashbyhq.com/posting-api/job-board/' + encodeURIComponent(c.token) });\n      rows = (r.jobs || []).filter(j => j.isListed !== false).map(j => ({\n        id: j.id || j.jobUrl, title: j.title, url: j.jobUrl, loc: j.location || '', posted: j.publishedAt,\n        emp: j.employmentType, desc: strip(j.descriptionPlain || j.descriptionHtml), wm: mode(j.workplaceType, j.isRemote, j.location)\n      }));\n    }\n    const fresh = rows.filter(j => j.url && (!j.posted || new Date(j.posted).getTime() >= cutoff)).slice(0, cap);\n    for (const j of fresh) {\n      out.push({ json: {\n        source: SOURCE, source_id: c.ats + ':' + c.token + ':' + j.id, title: j.title, company: c.name, url: j.url,\n        location_raw: j.loc, work_mode: j.wm, employment_type_raw: j.emp || '',\n        posted_date: j.posted ? new Date(j.posted).toISOString() : new Date().toISOString(), posted_estimated: !j.posted,\n        description_text: j.desc.slice(0, 6000), needs_detail: false, ats_company: c.name\n      } });\n    }\n  } catch (e) {\n    errors.push(c.name + ' (' + c.ats + '/' + c.token + '): ' + String(e.message || e).slice(0, 80));\n  }\n  await sleep(400);\n}\nif (errors.length) out.push({ json: { source: SOURCE, __error: SOURCE + ': ' + errors.join(' | ').slice(0, 400) } });\nif (!out.length) return [{ json: { source: SOURCE, __skip: 'nothing_fresh' } }];\nreturn out;\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "0fd8d736-40ce-4e59-89c6-7f7a363f5ef4",
+      "name": "Src Working Nomads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        2096
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Src Working Nomads (Code, run once for all items)\n// Free public JSON feed of curated remote jobs: https://www.workingnomads.com/api/exposed_jobs/\n// Fields: url, title, description (HTML), company_name, category_name, tags, location, pub_date.\nconst SOURCE = 'working-nomads';\nconst L = $('Load Config').first().json;\nconst S = (L.config.sources || {})[SOURCE] || {};\nif (!S.enabled || L.due[SOURCE] === false) return [{ json: { source: SOURCE, __skip: 'disabled_or_not_due' } }];\nconst strip = s => String(s || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\\s+/g, ' ').trim();\ntry {\n  const rows = await this.helpers.httpRequest({ method: 'GET', json: true, timeout: 30000,\n    url: 'https://www.workingnomads.com/api/exposed_jobs/', headers: { 'User-Agent': 'JobRadar/2.0' } });\n  const list = Array.isArray(rows) ? rows : [];\n  if (!list.length) return [{ json: { source: SOURCE, __error: SOURCE + ': empty response (format changed?)' } }];\n  return list.filter(j => j.url && j.title).map(j => ({ json: {\n    source: SOURCE, source_id: j.url, title: j.title, company: j.company_name || 'unknown', url: j.url,\n    location_raw: j.location || 'Remote', work_mode: 'remote',\n    posted_date: j.pub_date ? new Date(j.pub_date).toISOString() : new Date().toISOString(), posted_estimated: !j.pub_date,\n    description_text: strip(j.description).slice(0, 6000), needs_detail: false,\n    tags: String(j.tags || '').split(',').map(t => t.trim()).filter(Boolean), category: j.category_name || ''\n  } }));\n} catch (e) {\n  return [{ json: { source: SOURCE, __error: SOURCE + ': ' + String(e.message || e).slice(0, 200) } }];\n}\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "3e557c8f-ad8e-4ca2-aec4-f46a18a90365",
+      "name": "Merge New",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        592,
+        1712
+      ],
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 5
+      }
+    },
+    {
+      "id": "86450a1d-9cbd-41c9-90ec-a7868d336eec",
+      "name": "Merge All",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1040,
+        240
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "ca85411b-3c6b-4c95-b24f-d2c245aa5c0f",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Normalize (Code, run once for all items). Input: \"Merge All\".\n// One schema for every source (the 12 v1 mappers + the v2 adapters), canonical URLs, work mode,\n// employment type and kind (job or gig). Error and skip markers are passed through untouched so\n// \"Run Stats\" can count them per source; disabled sources are dropped here (their fetch still ran).\nconst L = $('Load Config').first().json;\nconst S = L.config.sources || {};\nconst boardKeys = new Map((S.boards || []).map(b => [b.key, b]));\nconst enabled = src => S[src] ? !!S[src].enabled : (boardKeys.has(src) ? !!boardKeys.get(src).enabled : true);\n\nconst DROP_PARAMS = /^(utm_|ref$|ref_|refid|trk|tracking|src$|source$|gh_src|lever-|ashby_|fbclid|gclid|mc_)/i;\n// HN Who is Hiring sends HTML-entity encoded text (\"https:&#x2F;&#x2F;acme.com\", \"R&amp;D\"): decode first (run 1, 2026-10-30).\nconst unent = s => String(s || '').replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))\n  .replace(/&#(\\d+);/g, (_, d) => String.fromCharCode(Number(d))).replace(/&quot;/g, '\"').replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');\n// String-based on purpose: the n8n Code-node sandbox has no URL / URLSearchParams globals (probe, 2026-10-30).\nconst canonUrl = u => {\n  const m = unent(u).trim().match(/^(https?):\\/\\/([^\\/?#\\s]+)([^?#\\s]*)(\\?[^#\\s]*)?/i);\n  if (!m) return '';\n  const query = (m[4] || '').slice(1).split('&').filter(p => p && !DROP_PARAMS.test(decodeURIComponent(p.split('=')[0] || '')));\n  return m[1].toLowerCase() + '://' + m[2].toLowerCase() + (m[3] || '/') + (query.length ? '?' + query.join('&') : '');\n};\nconst detectMode = t => /\\bhybrid\\b/i.test(t) ? 'hybrid'\n  : /\\b(fully remote|remote[- ]first|100% remote|remote|anywhere|worldwide|work from home|wfh|distributed team)\\b/i.test(t) ? 'remote'\n  : /\\b(on[- ]?site|in[- ]office|office[- ]based|onsite)\\b/i.test(t) ? 'onsite' : 'unknown';\nconst detectEmployment = t =>\n  /\\b(intern|internship|praktikum|werkstudent|working student)\\b/i.test(t) ? 'internship'\n  : /\\b(freelance|freelancer)\\b/i.test(t) ? 'freelance'\n  : /\\b(contract|contractor|fixed[- ]term|temporary)\\b/i.test(t) ? 'contract'\n  : /\\bpart[- ]time\\b/i.test(t) ? 'part_time'\n  : /\\bfull[- ]time\\b/i.test(t) ? 'full_time' : 'unknown';\nconst GIG = /\\b(freelance|freelancer|gig|one[- ]off|short[- ]term|project[- ]based|per hour|\\/\\s?hr|hourly|fixed[- ]price|budget|bounty|paid task|small task)\\b/i;\n// Community job boards (Clay, n8n forums) carry freelance asks, not employment (run 2, 2026-10-30).\nconst GIG_SOURCES = new Set(['reddit', 'contra', 'clay-community', 'n8n-community']);\n\nconst out = [];\nconst seen = new Set();\nfor (const it of $input.all()) {\n  const j = it.json || {};\n  if (j.__skip || j.__error) { out.push({ json: { source: j.source || 'unknown', __skip: j.__skip, __error: j.__error } }); continue; }\n  if (!j.url || !j.source) continue;\n  if (!enabled(j.source)) { out.push({ json: { source: j.source, __skip: 'disabled' } }); continue; }\n  const url = canonUrl(j.url);\n  if (!url || seen.has(url)) continue;\n  seen.add(url);\n\n  const title = unent(j.title).replace(/\\s+/g, ' ').trim();\n  const desc = String(j.description_text || '').trim();\n  const head = [title, j.location_raw, j.employment_type_raw, j.list_context, desc.slice(0, 600)].filter(Boolean).join(' | ');\n  let mode = j.work_mode || (j.work_policy === 'remote' ? 'remote' : j.work_policy === 'onsite' ? 'onsite' : 'unknown');\n  if (!['remote', 'hybrid', 'onsite'].includes(mode)) mode = detectMode([title, j.location_raw, j.list_context].join(' '));\n  if (mode === 'remote' && /\\bhybrid\\b/i.test(title + ' ' + (j.location_raw || ''))) mode = 'hybrid';   // \"Remote / Hybrid\" titles\n  const employment = detectEmployment(head);\n  const kind = j.kind === 'gig' || GIG_SOURCES.has(j.source) || employment === 'freelance' || GIG.test(title + ' ' + desc.slice(0, 300)) ? 'gig' : 'job';\n  const posted = new Date(j.posted_date);\n  const postedOk = !isNaN(posted.getTime());\n\n  out.push({ json: {\n    source: j.source,\n    source_id: String(j.source_id || j.id || url),\n    url,\n    title: title || '(untitled)',\n    company: unent(j.company || 'unknown').trim() || 'unknown',\n    location_raw: String(j.location_raw || '').trim(),\n    work_mode: mode,\n    employment_type: employment,\n    kind,\n    posted_date: postedOk ? posted.toISOString() : new Date().toISOString(),\n    posted_estimated: !postedOk || !!j.posted_estimated,\n    description_text: desc.slice(0, 6000),\n    needs_detail: !!j.needs_detail && desc.length < 200,\n    detail: j.detail || null,\n    visa_flag: j.source === 'arbeitnow' ? j.visa_sponsorship === true : (j.visa_sponsorship === true ? true : null),\n    seniority_hint: j.seniority_hint || '',\n    gate_hint: j.gate_hint || '',\n    list_context: j.list_context || ''\n  } });\n}\nreturn out.length ? out : [{ json: { source: 'normalize', __skip: 'no_items' } }];\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "203d4e1e-88af-49de-85ce-aa99a70be8e1",
+      "name": "Gate A",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Gate A (Code, run once for all items). Input: \"Normalize\".\n// Deterministic gates on metadata only (title, location, dates, source flags). Cheap, so it runs on\n// everything. Every item gets gate = pass|drop plus a reason code; \"Ingest\" records all of them so\n// the console can show what was dropped and why. Rule: drop only on clear evidence.\nconst L = $('Load Config').first().json;\nconst C = L.config;\nconst esc = s => String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst termRe = terms => (terms && terms.length)\n  ? new RegExp('(?:^|[^a-z0-9])(' + terms.map(t => esc(String(t).toLowerCase())).join('|') + ')(?=$|[^a-z0-9])', 'i') : null;\nconst hit = (re, text) => { if (!re) return ''; const m = String(text || '').match(re); return m ? m[1] : ''; };\nconst safeRe = (src, fb) => { try { return new RegExp(src, 'i'); } catch (e) { return fb; } };\n\nconst roleRe = termRe(C.search.role_terms);\nconst blockRe = termRe(C.search.title_block_terms);\nconst seniorRe = safeRe(C.search.title_senior_regex, /$^/);\nconst juniorRe = safeRe(C.search.title_junior_regex, /$^/);\nconst skillRes = (C.search.skills || []).map(s => termRe([s]));\nconst okRe = termRe(C.work_modes.remote.regions_ok);\nconst locBlockRe = termRe(C.work_modes.remote.location_block);\nconst countryRe = termRe(C.visa.target_countries);\nconst SENIOR_HINT = /^(mid-level|mid|senior|lead|staff\\+?|exec|executive|director|mid_senior)$/i;\nconst cutoff = Date.now() - C.freshness.window_days * 86400000;\nconst minHits = Number(C.search.min_skill_hits) || 0;\nconst allowedEmployment = new Set(C.opportunity.employment_types || []);\nconst arbeitnowVisaOnly = !!(C.sources.arbeitnow && C.sources.arbeitnow.visa_only);\n\nfunction gate(j) {\n  if (j.gate_hint) return ['drop', j.gate_hint, ''];\n  if (j.kind === 'job' && !C.opportunity.jobs) return ['drop', 'kind_disabled', 'job'];\n  if (j.kind === 'gig' && !C.opportunity.gigs) return ['drop', 'kind_disabled', 'gig'];\n  if (!allowedEmployment.has(j.employment_type)) return ['drop', 'employment_type', j.employment_type];\n  if (new Date(j.posted_date).getTime() < cutoff) return ['drop', 'stale', j.posted_date.slice(0, 10)];\n\n  const title = j.title.toLowerCase();\n  const blocked = hit(blockRe, title);\n  if (blocked) return ['drop', 'title_blocked', blocked];\n  const senior = (title.match(seniorRe) || [])[0];\n  if (senior && !juniorRe.test(title)) return ['drop', 'title_senior', senior];\n  if (j.seniority_hint && SENIOR_HINT.test(j.seniority_hint)) return ['drop', 'seniority_hint', j.seniority_hint];\n\n  const role = hit(roleRe, title);\n  if (!role) {\n    const desc = j.description_text || '';\n    const hits = desc.length >= 200 ? skillRes.filter(re => re && re.test(desc)).length : 0;\n    if (hits < Math.max(1, minHits)) return ['drop', 'role_mismatch', desc.length >= 200 ? hits + ' skill hits' : 'title only'];\n  }\n\n  if (j.source === 'arbeitnow' && arbeitnowVisaOnly && j.visa_flag !== true) return ['drop', 'visa_flag_false', 'arbeitnow'];\n\n  const mode = j.work_mode;\n  const wm = C.work_modes;\n  if (mode === 'remote') {\n    if (!wm.remote.enabled) return ['drop', 'mode_disabled', 'remote'];\n    const loc = j.location_raw || '';\n    const blockedLoc = hit(locBlockRe, loc);\n    if (blockedLoc && !hit(okRe, loc)) return ['drop', 'remote_region', blockedLoc];\n  } else if (mode === 'hybrid' || mode === 'onsite') {\n    if (!wm[mode].enabled) return ['drop', 'mode_disabled', mode];\n    if (countryRe && j.location_raw && !hit(countryRe, j.location_raw)) return ['drop', 'country_not_target', j.location_raw.slice(0, 60)];\n  } else if (wm.unknown_policy === 'drop') {\n    return ['drop', 'mode_unknown', ''];\n  }\n  return ['pass', '', ''];\n}\n\nconst out = [];\nfor (const it of $input.all()) {\n  const j = it.json;\n  if (!j.url) { out.push({ json: j }); continue; }               // skip/error markers pass through for stats\n  const [g, reason, detail] = gate(j);\n  out.push({ json: Object.assign({}, j, {\n    gate_a: g, gate_a_reason: reason,\n    _ingest: {\n      url: j.url, source: j.source, kind: j.kind, title: j.title, company: j.company, location_raw: j.location_raw,\n      work_mode: j.work_mode, employment_type: j.employment_type, posted_date: j.posted_date,\n      gate: g, reason, detail: String(detail || '').slice(0, 300)\n    }\n  }) });\n}\nreturn out;\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "eed72ed2-34d8-4d3b-b38d-b8191947887b",
+      "name": "Ingest",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1712,
+        240
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $('Load Config').first().json.run_id, $('Load Config').first().json.rev, JSON.stringify($('Gate A').all().map(i => i.json._ingest).filter(Boolean)) ] }}"
+        },
+        "query": "select * from jr_ingest($1::bigint, $2::text, $3::jsonb);"
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "name": "Neon Job Radar"
+        }
+      }
+    },
+    {
+      "id": "f3ae55e3-6f9c-4fdf-97ad-e8106c63c5fa",
+      "name": "Rejoin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1936,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Rejoin (Code, run once for all items). Input: \"Ingest\" (rows from jr_ingest).\n// jr_ingest returns only postings worth processing (new, or retries). Descriptions never went to the\n// database, so the full items are taken back from \"Gate A\" by URL.\nconst back = $input.all().map(i => i.json).filter(r => r && r.posting_id && r.url);\nif (!back.length) return [{ json: { __empty: true } }];\nconst byUrl = new Map($('Gate A').all().map(i => i.json).filter(j => j.url).map(j => [j.url, j]));\nconst out = [];\nfor (const r of back) {\n  const j = byUrl.get(r.url);\n  if (!j) continue;\n  const { _ingest, ...rest } = j;\n  out.push({ json: Object.assign(rest, { posting_id: r.posting_id, retry: r.retry === true || r.retry === 't' }) });\n}\nreturn out.length ? out : [{ json: { __empty: true } }];\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "f7dbbdb7-ccbb-4ea3-bda1-42d67451ff33",
+      "name": "Detail Fetch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Detail Fetch (Code, run once for all items). Input: \"Rejoin\".\n// List-only sources (LinkedIn, Jina boards) arrive without a description. Fetch it only now, after\n// gate A and dedupe, and only for the best llm.detail_cap candidates (title role match and junior\n// words first). The rest is deferred (stays queued) and retried next run while still fresh.\nconst L = $('Load Config').first().json;\nconst C = L.config;\nconst items = $input.all().map(i => i.json).filter(j => j.url);\nif (!items.length) return [{ json: { __empty: true } }];\n\nconst UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';\nlet JINA_KEY = '';\ntry { JINA_KEY = $env.JINA_API_KEY || ''; } catch (e) { JINA_KEY = ''; }\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\nconst decode = s => String(s || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')\n  .replace(/&quot;/g, '\"').replace(/&#39;|&#x27;/g, \"'\").replace(/&nbsp;/g, ' ');\nconst strip = s => decode(String(s || '').replace(/<br\\s*\\/?>/gi, '\\n').replace(/<\\/(p|li|h\\d)>/gi, '\\n').replace(/<[^>]*>/g, ' '))\n  .replace(/[ \\t]+/g, ' ').replace(/\\n\\s*\\n+/g, '\\n').trim();\nconst mdClean = s => String(s || '').replace(/!\\[[^\\]]*\\]\\([^)]*\\)/g, ' ').replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1')\n  .replace(/[#>*_`|]+/g, ' ').replace(/[ \\t]+/g, ' ').replace(/\\n\\s*\\n+/g, '\\n').trim();\nconst junior = (() => { try { return new RegExp(C.search.title_junior_regex, 'i'); } catch (e) { return /$^/; } })();\nconst prio = j => (junior.test(j.title) ? 2 : 0) + (/\\b(gtm|automation|revops|n8n|clay|hubspot|crm)\\b/i.test(j.title) ? 1 : 0);\n\n// Budget is spent per attempted fetch, in priority order. When LinkedIn throttles, its remaining items are\n// deferred without using budget, so the slots go to the next Jina candidates (run 3, 2026-10-30: 29 LinkedIn\n// deferrals had blocked 7 Jina fetches).\nconst need = items.filter(j => j.needs_detail && j.detail && j.detail.mode !== 'none').sort((a, b) => prio(b) - prio(a));\nconst budget = Math.max(0, Number(C.llm.detail_cap) || 0);\nlet used = 0;\nconst startedAt = Date.now();\nlet liBlocked = false;\nlet timeLimitS = 280;\ntry { timeLimitS = Math.max(120, (Number($env.N8N_RUNNERS_TASK_TIMEOUT) || 300) - 20); } catch (e) { /* default */ }\n\nfor (const j of items) if (!j.needs_detail || !j.detail || j.detail.mode === 'none') j.detail_status = 'not_needed';\nfor (const j of need) {\n  if (j.detail.mode === 'linkedin' && liBlocked) { j.detail_status = 'deferred'; continue; }   // no budget used\n  if (used >= budget) { j.detail_status = 'deferred'; continue; }\n  if ((Date.now() - startedAt) / 1000 > timeLimitS) { j.detail_status = 'deferred'; continue; }\n  used++;\n  try {\n    if (j.detail.mode === 'linkedin') {\n      const html = String(await this.helpers.httpRequest({ method: 'GET', json: false, timeout: 20000,\n        url: 'https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/' + j.detail.id,\n        headers: { 'User-Agent': UA, 'Accept-Language': 'en-US,en;q=0.9' } }));\n      const body = (html.match(/show-more-less-html__markup[^>]*>([\\s\\S]*?)<\\/div>/) || [])[1] || '';\n      const crit = {};\n      const re = /description__job-criteria-subheader[^>]*>([\\s\\S]*?)<\\/h3>[\\s\\S]*?description__job-criteria-text[^>]*>([\\s\\S]*?)<\\/span>/g;\n      let m;\n      while ((m = re.exec(html)) !== null) crit[strip(m[1]).toLowerCase()] = strip(m[2]);\n      j.description_text = strip(body).slice(0, 6000);\n      if (crit['seniority level']) j.seniority_hint = crit['seniority level'].toLowerCase().replace(/\\s+/g, '-');\n      if (crit['employment type'] && j.employment_type === 'unknown') {\n        const e = crit['employment type'].toLowerCase();\n        j.employment_type = e.includes('intern') ? 'internship' : e.includes('contract') ? 'contract' : e.includes('part') ? 'part_time'\n          : e.includes('full') ? 'full_time' : e.includes('temporary') ? 'contract' : 'unknown';\n      }\n      await sleep(2000);\n    } else if (j.detail.mode === 'jina') {\n      const headers = { 'Accept': 'application/json', 'X-Timeout': '25', 'X-Return-Format': 'markdown' };\n      if (JINA_KEY) headers.Authorization = 'Bearer ' + JINA_KEY;\n      const res = await this.helpers.httpRequest({ method: 'GET', url: 'https://r.jina.ai/' + (j.detail.url || j.url), headers, json: true, timeout: 45000 });\n      const md = typeof res === 'string' ? res : String((res && res.data && res.data.content) || (res && res.content) || '');\n      const titleFromPage = res && res.data && res.data.title;\n      j.description_text = mdClean(md).slice(0, 6000);\n      if (titleFromPage && (j.title === '(untitled)' || j.title.length > 140)) j.title = String(titleFromPage).slice(0, 200);\n      await sleep(JINA_KEY ? 800 : 3500);\n    }\n    j.detail_status = (j.description_text || '').length >= 80 ? 'ok' : 'failed';\n  } catch (e) {\n    j.detail_status = 'failed';\n    j.detail_error = String(e.message || e).slice(0, 120);\n    if (/429|999/.test(j.detail_error) && j.detail.mode === 'linkedin') liBlocked = true;   // throttled: defer the rest\n  }\n}\nreturn items.map(j => ({ json: j }));\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "314fc7fe-323e-4551-a227-4491cb033b56",
+      "name": "Gate B",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Gate B (Code, run once for all items). Input: \"Detail Fetch\".\n// Deterministic gates on the description, before any LLM call:\n//   experience_years  \"3+ years of experience\", \"minimum two (2) years\", \"Experience: 2+ yrs\" ...\n//   language          required non-English language, banned phrases, or a JD written in German/French\n//   visa_negative / work_authorization / visa_unknown   (hybrid and on-site need a visa signal)\n//   remote_region_desc  \"US only\", \"must reside in the UK\" ...\n//   opportunity_blocked  commission only, revenue share, pay per meeting, partnership offers\n// Rule: drop only on clear evidence. Ambiguous cases go to the LLM, which re-checks (gate C).\nconst L = $('Load Config').first().json;\nconst C = L.config;\nconst items = $input.all().map(i => i.json).filter(j => j.url);\nif (!items.length) return [{ json: { __empty: true } }];\n\nconst esc = s => String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst phraseRe = terms => (terms && terms.length)\n  ? new RegExp('(?:^|[^a-z0-9])(' + terms.map(t => esc(String(t).toLowerCase()).replace(/\\s+/g, '\\\\s+')).join('|') + ')(?=$|[^a-z0-9])', 'i') : null;\nconst hit = (re, text) => { if (!re) return ''; const m = String(text || '').match(re); return m ? m[1] : ''; };\n\n// ---- experience: minimum years required (lenient: the smallest stated minimum wins) ----\nconst WORDS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };\nconst N = '(\\\\d{1,2}(?:\\\\.\\\\d)?|zero|one|two|three|four|five|six|seven|eight|nine|ten)';\nconst YEARS_RE = new RegExp('(up to |less than |under |at least |a minimum of |minimum of |minimum |min\\\\.? |over |more than )?' + N +\n  '(?:\\\\s*\\\\(\\\\d{1,2}\\\\))?\\\\s*(\\\\+|plus| or more)?\\\\s*(?:(?:-|to|or)\\\\s*' + N + '\\\\s*\\\\+?\\\\s*)?(years?|yrs?|months?)\\\\b', 'g');\nconst toNum = s => (s in WORDS ? WORDS[s] : Number(s));\nfunction minYears(text) {\n  const t = ' ' + String(text || '').toLowerCase().replace(/[‐-―]/g, '-').replace(/\\s+/g, ' ') + ' ';\n  const zeroHint = /\\b(no (prior |previous |professional )?(work )?experience (is )?(required|needed|necessary)|new grads?|recent graduates?|0 years)\\b/.test(t);\n  let best = null, evidence = '';\n  YEARS_RE.lastIndex = 0;\n  let m;\n  while ((m = YEARS_RE.exec(t)) !== null) {\n    const after = t.slice(YEARS_RE.lastIndex, YEARS_RE.lastIndex + 80);\n    const before = t.slice(Math.max(0, m.index - 50), m.index);\n    const expAfter = /^\\s*(?:'s|’s)?\\s*(?:of\\s+)?(?:[a-z0-9/&+.,'’()-]+\\s+){0,6}?(?:experience|exp\\b|work history|track record)/.test(after);\n    const expBefore = /(?:experience|exp)\\s*(?:required|level|needed)?\\s*(?:[:\\-–]|of)?\\s*$/.test(before);\n    if (!expAfter && !expBefore) continue;\n    if (/\\b(combined|collective|total team)\\b/.test(after.slice(0, 40))) continue;\n    if (/\\b(founded|since|ago|in business|history of|established|for over)\\b[^.]{0,25}$/.test(before)) continue;\n    if (/^[^.]{0,60}\\b(nice to have|is a plus|a plus|bonus|preferred|ideally|advantage)\\b/.test(after)) continue;\n    let lo = toNum(m[2]);\n    if (/^month/.test(m[5])) lo = lo / 12;\n    if (/up to|less than|under/.test(m[1] || '')) lo = 0;\n    if (!Number.isFinite(lo)) continue;\n    if (best === null || lo < best) { best = lo; evidence = t.slice(Math.max(0, m.index - 20), YEARS_RE.lastIndex + 45).trim(); }\n  }\n  return { min: best, evidence: evidence.slice(0, 160), zeroHint };\n}\n\n// ---- language ----\nconst blocked = (C.languages.blocked || []).map(s => s.toLowerCase());\nconst langReqRe = blocked.length ? new RegExp(\n  '\\\\b(?:(?:fluent|fluency|native|proficient|proficiency|business[- ]level|professional|excellent|strong|working)\\\\s+(?:in\\\\s+|command of\\\\s+)?(' + blocked.map(esc).join('|') +\n  ')|(' + blocked.map(esc).join('|') + ')\\\\s*(?:\\\\((?:c1|c2|b2)\\\\)|c1|c2|b2)?\\\\s*(?:language\\\\s+)?(?:skills\\\\s+)?(?:is\\\\s+|are\\\\s+)?(?:required|mandatory|essential|a must|must[- ]have|needed))\\\\b', 'i') : null;\nconst bannedRe = phraseRe(C.languages.banned_phrases);\n// Pay models and offers that are not paid work: commission only, revenue share, pay per meeting, partnerships.\nconst offerRe = phraseRe((C.opportunity || {}).block_phrases);\nconst STOP = {\n  german: [' und ', ' der ', ' die ', ' das ', ' wir ', ' für ', ' mit ', ' sie ', ' ist ', ' nicht ', ' auf '],\n  french: [' et ', ' les ', ' des ', ' nous ', ' pour ', ' vous ', ' une ', ' dans ', ' sur ', ' avec '],\n  dutch: [' en ', ' het ', ' een ', ' wij ', ' voor ', ' met ', ' van ', ' je ', ' zijn '],\n  spanish: [' y ', ' los ', ' las ', ' para ', ' con ', ' una ', ' del ', ' nuestro ', ' somos ']\n};\nconst EN = [' and ', ' the ', ' you ', ' we ', ' for ', ' with ', ' our ', ' to ', ' of ', ' is '];\nconst count = (t, words) => words.reduce((n, w) => n + t.split(w).length - 1, 0);\nfunction jdLanguage(text) {\n  const t = ' ' + String(text || '').toLowerCase().replace(/\\s+/g, ' ').slice(0, 2500) + ' ';\n  const en = count(t, EN);\n  let best = 'english', bestN = en;\n  for (const [lang, words] of Object.entries(STOP)) { const n = count(t, words); if (n > bestN * 1.3 && n >= 8) { best = lang; bestN = n; } }\n  return best;\n}\n\n// ---- visa and region ----\nconst posRe = phraseRe(C.visa.positive_terms);\nconst negRe = phraseRe(C.visa.negative_terms);\nconst authRe = phraseRe(C.visa.work_auth_terms);\nconst descBlockRe = phraseRe(C.work_modes.remote.desc_block);\nconst sponsors = (C.visa.known_sponsors || []).map(s => s.toLowerCase().replace(/[^a-z0-9]/g, '')).filter(Boolean);\nconst isSponsor = company => { const c = String(company || '').toLowerCase().replace(/[^a-z0-9]/g, ''); return !!c && sponsors.some(s => c === s || c.startsWith(s)); };\nconst modeOf = t => /\\bhybrid\\b/i.test(t) ? 'hybrid' : /\\b(fully remote|remote[- ]first|100% remote|work from anywhere|remote position|remote role)\\b/i.test(t) ? 'remote'\n  : /\\b(on[- ]?site|in[- ]office|office[- ]based|onsite)\\b/i.test(t) ? 'onsite' : 'unknown';\n\nconst maxYears = Number(C.experience.max_years_required) || 0;\n\nfunction gate(j) {\n  if (j.detail_status === 'deferred') return ['deferred', 'detail_deferred', ''];\n  if (j.detail_status === 'failed') return ['retry', 'detail_retry', j.detail_error || ''];\n  const desc = String(j.description_text || '');\n  if (desc.trim().length < 50) return ['drop', 'no_description', desc.length + ' chars'];\n  const low = desc.toLowerCase();\n  const offer = hit(offerRe, String(j.title || '').toLowerCase() + ' \\n ' + low);\n  if (offer) return ['drop', 'opportunity_blocked', offer];\n\n  if (j.work_mode === 'unknown') {\n    const m = modeOf(desc.slice(0, 2000));\n    if (m !== 'unknown') { j.work_mode = m; j.work_mode_from = 'description'; }\n  }\n  const wm = C.work_modes;\n  if ((j.work_mode === 'hybrid' || j.work_mode === 'onsite') && !wm[j.work_mode].enabled) return ['drop', 'mode_disabled', j.work_mode];\n  if (j.work_mode === 'remote' && !wm.remote.enabled) return ['drop', 'mode_disabled', 'remote'];\n\n  const ex = minYears(desc);\n  j.regex_min_years = ex.min;\n  j.regex_evidence = ex.evidence;\n  if (ex.min !== null && ex.min >= maxYears + 1) return ['drop', 'experience_years', ex.evidence];\n\n  if (C.languages.detect_jd_language) {\n    const lang = jdLanguage(desc);\n    j.jd_language = lang;\n    if (lang !== 'english' && blocked.includes(lang)) return ['drop', 'language', 'description written in ' + lang];\n  }\n  const lr = desc.match(langReqRe || /$^/);\n  if (lr) return ['drop', 'language', lr[0].trim().slice(0, 80)];\n  const banned = hit(bannedRe, low);\n  if (banned) return ['drop', 'banned_phrase', banned];\n\n  const neg = hit(negRe, low);\n  const auth = hit(authRe, low);\n  const pos = hit(posRe, low);\n  j.visa_signal = neg ? 'negative' : auth ? 'work_auth' : (pos || j.visa_flag === true || isSponsor(j.company)) ? 'positive' : 'unknown';\n  j.visa_evidence = neg || auth || pos || (j.visa_flag === true ? 'source flag' : isSponsor(j.company) ? 'known sponsor' : '');\n\n  if (j.work_mode === 'remote') {\n    if (auth) return ['drop', 'work_authorization', auth];   // specific phrases only, e.g. \"authorized to work in the us\"\n    const region = hit(descBlockRe, low);\n    if (region) return ['drop', 'remote_region_desc', region];\n  } else if (j.work_mode === 'hybrid' || j.work_mode === 'onsite') {\n    if (wm[j.work_mode].require_visa) {\n      if (neg) return ['drop', 'visa_negative', neg];\n      if (auth) return ['drop', 'work_authorization', auth];\n      if (j.visa_signal !== 'positive' && C.visa.unknown_policy === 'drop') return ['drop', 'visa_unknown', 'no sponsorship or relocation signal'];\n    }\n  }\n  return ['pass', '', ''];\n}\n\nreturn items.map(j => {\n  const [g, reason, detail] = gate(j);\n  return { json: Object.assign(j, { gate_b: g, gate_b_reason: reason, gate_b_detail: String(detail || '').slice(0, 300) }) };\n});\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "06218f3f-1685-4047-8d98-4b95774f2e43",
+      "name": "Rank & Slice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        240
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Rank & Slice (Code, run once for all items). Input: \"Gate B\".\n// Ranks gate B survivors with a cheap heuristic and sends at most llm.slice_cap to the LLM, with at\n// most llm.max_per_source from one source (so one noisy board cannot eat the budget). The rest is\n// recorded as skipped_cap and comes back next run while still inside the freshness window.\nconst L = $('Load Config').first().json;\nconst C = L.config;\nconst pass = $input.all().map(i => i.json).filter(j => j.url && j.gate_b === 'pass');\nif (!pass.length) return [{ json: { __empty: true } }];\n\nconst esc = s => String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\nconst skillRes = (C.search.skills || []).map(s => new RegExp('(?:^|[^a-z0-9])' + esc(String(s).toLowerCase()) + '(?=$|[^a-z0-9])', 'i'));\nconst junior = (() => { try { return new RegExp(C.search.title_junior_regex, 'i'); } catch (e) { return /$^/; } })();\nfor (const j of pass) {\n  const text = j.title + ' ' + j.description_text;\n  const skills = skillRes.filter(re => re.test(text)).length;\n  const ageDays = (Date.now() - new Date(j.posted_date).getTime()) / 86400000;\n  j.heuristic_score = Math.min(skills, 10)\n    + (/\\b(gtm|automation|revops|n8n|clay|hubspot|crm|workflow)\\b/i.test(j.title) ? 4 : 0)\n    + (junior.test(j.title) ? 3 : 0)\n    + (j.regex_min_years === 0 || j.regex_min_years === null ? 1 : 0)\n    + (j.visa_signal === 'positive' ? 2 : 0)\n    + (ageDays <= 2 ? 2 : ageDays <= 4 ? 1 : 0)\n    + (j.retry ? 1 : 0);\n}\npass.sort((a, b) => b.heuristic_score - a.heuristic_score);\nconst cap = Math.max(1, Number(C.llm.slice_cap) || 25);\nconst perSource = Math.max(1, Number(C.llm.max_per_source) || cap);\nconst used = {};\nconst slice = [];\nfor (const j of pass) {\n  if (slice.length >= cap) break;\n  if ((used[j.source] || 0) >= perSource) continue;\n  used[j.source] = (used[j.source] || 0) + 1;\n  slice.push(j);\n}\nreturn slice.map(j => ({ json: j }));\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "5bbf8e1c-75d7-4688-97c7-18ec01bb673f",
+      "name": "Build Writes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        -432
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | Build Writes (Code, run once for all items). Input: \"Gate & Score\".\n// Collects every stage change of this run into ONE payload for jr_record_postings():\n// gate B drops, detail retries and deferrals, slice overflow, LLM outcomes and the new matches.\nconst safeAll = name => { try { return $(name).all().map(i => i.json); } catch (e) { return []; } };\nconst gateB = safeAll('Gate B').filter(j => j.url && j.posting_id);\nconst sliced = new Set(safeAll('Rank & Slice').filter(j => j.url).map(j => j.url));\nconst scored = $input.all().map(i => i.json).filter(j => j.url);\n\nconst updates = [];\nfor (const j of gateB) {\n  if (j.gate_b === 'drop') updates.push({ posting_id: j.posting_id, stage: 'dropped_b', reason: j.gate_b_reason, detail: j.gate_b_detail });\n  else if (j.gate_b === 'retry') updates.push({ posting_id: j.posting_id, stage: 'queued', reason: 'detail_retry', detail: j.gate_b_detail, attempt: true });\n  else if (j.gate_b === 'deferred') updates.push({ posting_id: j.posting_id, stage: 'queued', reason: 'detail_deferred' });\n  else if (j.gate_b === 'pass' && !sliced.has(j.url)) updates.push({ posting_id: j.posting_id, stage: 'skipped_cap', reason: 'slice_cap' });\n}\nconst matches = [];\nfor (const r of scored) {\n  if (r.outcome === 'matched') matches.push(r.match);\n  else if (r.outcome === 'below_score') updates.push({ posting_id: r.posting_id, stage: 'below_score', reason: r.reason, detail: r.detail, final_score: r.final_score });\n  else if (r.outcome === 'dropped_llm') updates.push({ posting_id: r.posting_id, stage: 'dropped_llm', reason: r.reason, detail: r.detail });\n  else if (r.outcome === 'llm_failed') updates.push({ posting_id: r.posting_id, stage: 'llm_failed', reason: r.reason, detail: r.detail });\n  else if (r.outcome === 'deferred') updates.push({ posting_id: r.posting_id, stage: 'skipped_cap', reason: 'llm_time_budget' });\n}\nconst L = $('Load Config').first().json;\nreturn [{ json: { run_id: L.run_id, rev: L.rev, payload: { updates, matches }, counts: { updates: updates.length, matches: matches.length } } }];\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "47e1545f-4c09-4df2-8970-89e8b9e377a8",
+      "name": "Record Postings",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2608,
+        -432
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $json.run_id, $json.rev, JSON.stringify($json.payload) ] }}"
+        },
+        "query": "select jr_record_postings($1::bigint, $2::text, $3::jsonb) as result;"
+      },
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "name": "Neon Job Radar"
+        }
+      }
+    },
+    {
+      "id": "5079b628-2290-4def-a30f-a0ecee4c645a",
+      "name": "Finish Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2608,
+        -144
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $json.run_id, JSON.stringify($json.payload) ] }}"
+        },
+        "query": "select jr_finish_run($1::bigint, $2::jsonb) as run;"
+      },
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "name": "Neon Job Radar"
+        }
+      }
+    },
+    {
+      "id": "fd7141db-2e6f-470e-aff8-336c00473399",
+      "name": "RevOps Roles Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        912
+      ],
+      "parameters": {
+        "jsCode": "// Job Radar v2 | RevOps Roles Error (Code, run once for all items). Input: error output #1 of \"RevOps Roles\".\n// The HTTP node runs with \"continue (using error output)\". Before this node the error branch was not\n// connected, so a 429 made the source vanish with errors = 0. It now becomes a {source, __error} marker that\n// Normalize passes through and Run Stats / v_jr_source_health count.\nconst SOURCE = 'revopsroles';\nconst j = $input.first().json || {};\nconst e = j.error || {};\nconst d = j.details || {};\nconst status = e.status || e.httpCode || '';\nconst msg = [status ? 'HTTP ' + status : '', d.message || e.message || 'request failed'].filter(Boolean).join(': ');\nreturn [{ json: { source: SOURCE, __error: SOURCE + ': ' + String(msg).slice(0, 180) } }];\n",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    }
+  ],
+  "connections": {
+    "RemoteOK": {
+      "main": [
+        [
+          {
+            "node": "RemoteOK Mapper1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remotive": {
+      "main": [
+        [
+          {
+            "node": "Remotive Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arbeitnow": {
+      "main": [
+        [
+          {
+            "node": "Arbeitnow Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arbeitnow Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RemoteOK Mapper1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remotive Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Build Prompts": {
+      "main": [
+        [
+          {
+            "node": "LLM Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Router": {
+      "main": [
+        [
+          {
+            "node": "Gate & Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WeWorkRemotely (WWR)": {
+      "main": [
+        [
+          {
+            "node": "WWR Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WWR Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "n8n Community Jobs": {
+      "main": [
+        [
+          {
+            "node": "n8n Community Jobs Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobicy": {
+      "main": [
+        [
+          {
+            "node": "Jobicy Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WWR Marketing": {
+      "main": [
+        [
+          {
+            "node": "WWR Marketing Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "n8n Community Jobs Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge Forums",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobicy Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "WWR Marketing Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 7
+          }
+        ]
+      ]
+    },
+    "HN Who is Hiring": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 8
+          }
+        ]
+      ]
+    },
+    "Himalayas1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "Load Config": {
+      "main": [
+        [
+          {
+            "node": "Himalayas1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RemoteOK",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remotive",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Arbeitnow",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WeWorkRemotely (WWR)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "n8n Community Jobs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Jobicy",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WWR Marketing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HN Who is Hiring",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RevOps Roles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Clay Community",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remocate Mapper",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Src LinkedIn",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Src Boards",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reddit Queries",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Src ATS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Src Working Nomads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RevOps Roles": {
+      "main": [
+        [
+          {
+            "node": "RevOps Roles Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "RevOps Roles Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RevOps Roles Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Clay Community": {
+      "main": [
+        [
+          {
+            "node": "Clay Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clay Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge Forums",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Forums": {
+      "main": [
+        [
+          {
+            "node": "Merge Final",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Remocate Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 9
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Should Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Run": {
+      "main": [
+        [
+          {
+            "node": "Go?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Go?": {
+      "main": [
+        [
+          {
+            "node": "Start Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Start Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Run": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit Queries": {
+      "main": [
+        [
+          {
+            "node": "Tavily Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Search": {
+      "main": [
+        [
+          {
+            "node": "Reddit Mapper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Src LinkedIn": {
+      "main": [
+        [
+          {
+            "node": "Merge New",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Src Boards": {
+      "main": [
+        [
+          {
+            "node": "Merge New",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Reddit Mapper": {
+      "main": [
+        [
+          {
+            "node": "Merge New",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Src ATS": {
+      "main": [
+        [
+          {
+            "node": "Merge New",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Src Working Nomads": {
+      "main": [
+        [
+          {
+            "node": "Merge New",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Merge Final": {
+      "main": [
+        [
+          {
+            "node": "Merge All",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge New": {
+      "main": [
+        [
+          {
+            "node": "Merge All",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "Gate A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate A": {
+      "main": [
+        [
+          {
+            "node": "Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest": {
+      "main": [
+        [
+          {
+            "node": "Rejoin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rejoin": {
+      "main": [
+        [
+          {
+            "node": "Detail Fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detail Fetch": {
+      "main": [
+        [
+          {
+            "node": "Gate B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate B": {
+      "main": [
+        [
+          {
+            "node": "Rank & Slice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rank & Slice": {
+      "main": [
+        [
+          {
+            "node": "Build Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate & Score": {
+      "main": [
+        [
+          {
+            "node": "Build Writes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Writes": {
+      "main": [
+        [
+          {
+            "node": "Record Postings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Postings": {
+      "main": [
+        [
+          {
+            "node": "Run Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Stats": {
+      "main": [
+        [
+          {
+            "node": "Finish Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RevOps Roles Error": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "Rm29SctgOfnuy3LJ",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "timezone": "Africa/Tunis"
+  }
+}
