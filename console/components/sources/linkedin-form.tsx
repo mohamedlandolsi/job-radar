@@ -3,7 +3,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { CheckGroup, SelectField, TextField, type LinkedIn, type LinkedInSearch } from "@/components/sources/fields";
+import { CheckGroup, SelectField, TextField, type LinkedIn, type LinkedInSearch } from "@/components/form/fields";
 
 const WORK_TYPES = [
   { value: "remote", label: "Remote" },

@@ -10,12 +10,12 @@ import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { FieldError, INPUT, type Board } from "@/components/sources/fields";
+import { FieldError, INPUT, type Board } from "@/components/form/fields";
 import { LinkedInForm } from "@/components/sources/linkedin-form";
 import { RedditForm } from "@/components/sources/reddit-form";
 import { AtsForm } from "@/components/sources/ats-form";
 import { BoardForm } from "@/components/sources/board-form";
-import { SaveBar } from "@/components/sources/save-bar";
+import { ConfigSaveBar } from "@/components/form/config-save-bar";
 
 const DOT: Record<Dot, { cls: string; label: string }> = {
   green: { cls: "bg-state-approved", label: "Healthy: fetched postings, no errors" },
@@ -67,6 +67,7 @@ export function SourcesEditor({ active, health }: { active: { rev: string; paylo
   }, [S, base]);
 
   const suggestedRev = useMemo(() => nextRev(active.rev), [active.rev]);
+  const source = useMemo(() => ({ draft }), [draft]);
   const boardPages = S.boards.filter((b) => b.enabled).reduce((n, b) => n + b.list_urls.length, 0);
 
   function toggle(row: SourceRow, enabled: boolean) {
@@ -256,11 +257,12 @@ export function SourcesEditor({ active, health }: { active: { rev: string; paylo
       ) : null}
 
       {changed.length > 0 ? (
-        <SaveBar
+        <ConfigSaveBar
           key={suggestedRev}
-          draft={draft}
+          source={source}
           baseRev={active.rev}
-          changed={changed}
+          summary={`${changed.length} unsaved ${changed.length === 1 ? "change" : "changes"}`}
+          defaultNote={`Sources: ${changed.join(", ")}`}
           suggestedRev={suggestedRev}
           onDiscard={() => {
             setDraft(clone(base));

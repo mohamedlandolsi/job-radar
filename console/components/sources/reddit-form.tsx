@@ -1,7 +1,7 @@
 "use client";
 
-import { TagInput } from "@/components/sources/tag-input";
-import type { Reddit } from "@/components/sources/fields";
+import { TagInput } from "@/components/form/tag-input";
+import type { Reddit } from "@/components/form/fields";
 
 // Reddit through Tavily: the subreddit allow-list and the search queries (one Tavily credit each per run).
 export function RedditForm({ value, onChange }: { value: Reddit; onChange: (v: Reddit) => void }) {

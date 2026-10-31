@@ -3,8 +3,8 @@
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { TagInput } from "@/components/sources/tag-input";
-import { NumberField, SelectField, TextField, regexError, type Board } from "@/components/sources/fields";
+import { TagInput } from "@/components/form/tag-input";
+import { NumberField, SelectField, TextField, regexError, type Board } from "@/components/form/fields";
 
 const CADENCE = [
   { value: "daily", label: "Daily" },

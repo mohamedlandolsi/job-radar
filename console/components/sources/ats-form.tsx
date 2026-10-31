@@ -2,7 +2,7 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SelectField, TextField, type Ats, type AtsCompany } from "@/components/sources/fields";
+import { SelectField, TextField, type Ats, type AtsCompany } from "@/components/form/fields";
 
 const ATS = [
   { value: "greenhouse", label: "Greenhouse" },
