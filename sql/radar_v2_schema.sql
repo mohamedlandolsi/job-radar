@@ -1554,7 +1554,7 @@ begin
 
   update jr_matches set
     status      = new_status,
-    fp_reason   = case when new_status = 'false_positive' then reason when new_status = 'new' then null else fp_reason end,
+    fp_reason   = case when new_status = 'false_positive' then coalesce(reason, fp_reason) when new_status = 'new' then null else fp_reason end,
     applied_at  = case when p_action = 'applied' then coalesce(applied_at, now()) when new_status = 'new' then null else applied_at end,
     notes       = case when has_notes then new_notes else notes end,
     reviewed_at = case when new_status <> r.status then now() else reviewed_at end

@@ -83,6 +83,16 @@ console.log(await q("select jr_review($1, 'good') as r", [pid]));
 await expectErr("select jr_review($1, 'offer')", [pid], 'invalid_transition');
 await expectErr("select jr_review($1, 'false_positive', '{}'::jsonb)", [pid], 'fp_reason_required');
 console.log(await q(`select jr_review($1, 'false_positive', '{"fp_reason":"experience","notes":"3 years"}'::jsonb) as r`, [pid]));
+// jr_review notes fix (2026-10-31_jr_review_notes.sql): save_notes on a false_positive match keeps fp_reason
+await q(`select jr_review($1, 'save_notes', '{"notes":"3 years, buried in paragraph 2"}'::jsonb)`, [pid]);
+const fpRow = (await q('select status, fp_reason, notes from jr_matches where match_id=$1', [pid]))[0];
+check(fpRow.status === 'false_positive' && fpRow.fp_reason === 'experience' && fpRow.notes === '3 years, buried in paragraph 2', 'save_notes on a false_positive match keeps fp_reason');
+await q("select jr_review($1, 'reopen')", [pid]);
+const reopened = (await q('select status, fp_reason from jr_matches where match_id=$1', [pid]))[0];
+check(reopened.status === 'new' && reopened.fp_reason === null, 'reopen still clears fp_reason');
+await q(`select jr_review($1, 'false_positive', '{"fp_reason":"experience"}'::jsonb)`, [pid]); // back to the earlier state for the checks below
+const migFn = (f) => { const t = fs.readFileSync(f, 'utf8'); const a = t.indexOf('create or replace function jr_review('); return t.slice(a, t.indexOf('end $$;', a)); };
+check(migFn(new URL('../sql/migrations/2026-10-31_jr_review_notes.sql', import.meta.url)) === migFn(process.argv[2]), 'migration jr_review is identical to the schema function');
 // flag
 const drop = (await q("select posting_id from jr_postings where stage='dropped_b' limit 1"))[0].posting_id;
 console.log(await q("select jr_flag_posting($1, 'false_negative', 'was fine') as r", [drop]));
