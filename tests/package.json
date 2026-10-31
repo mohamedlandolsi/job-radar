@@ -1,0 +1,12 @@
+{
+  "name": "job-radar-v2-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node schema_test.mjs ../sql/radar_v2_schema.sql ../config/default_config_v2.json && node gate_b_test.mjs ../config/default_config_v2.json ../n8n && node pipeline_test.mjs ../sql/radar_v2_schema.sql ../config/default_config_v2.json ../n8n && node detail_fetch_test.mjs ../config/default_config_v2.json ../n8n && node v1_patch_test.mjs ../n8n && node --experimental-strip-types --no-warnings config_schema_test.mts ../config/default_config_v2.json"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.13",
+    "zod": "^4.6.7"
+  }
+}
