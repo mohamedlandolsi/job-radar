@@ -17,6 +17,7 @@ node_modules/
 next-env.d.ts
 *.tsbuildinfo
 *.log
+*.pid
 
 # 4. OS junk files
 .DS_Store
