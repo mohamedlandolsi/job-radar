@@ -6,12 +6,14 @@ import { cn } from "@/lib/utils";
 export function SegmentedLinks({
   label,
   items,
+  className,
 }: {
   label: string;
   items: { href: string; label: string; count?: number; active: boolean }[];
+  className?: string;
 }) {
   return (
-    <nav aria-label={label} className="grid grid-cols-3 gap-1 rounded-md bg-secondary p-1 sm:flex sm:w-fit">
+    <nav aria-label={label} className={cn("grid grid-cols-3 gap-1 rounded-md bg-secondary p-1 sm:flex sm:w-fit", className)}>
       {items.map((it) => (
         <Link
           key={it.href}

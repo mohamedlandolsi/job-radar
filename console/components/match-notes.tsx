@@ -15,7 +15,8 @@ type FpReason = NonNullable<Parameters<typeof reviewMatch>[0]["fp_reason"]>;
 
 // Free-text notes on a match (jr_review "save_notes"; an empty box clears them).
 // fpReason: pass the current fp_reason of a "Not a fit" match. jr_review's save_notes otherwise writes
-// fp_reason = null and trips jr_m_fp_needs_reason (schema bug, fix pending in a migration).
+// fp_reason = null and trips jr_m_fp_needs_reason (fixed in sql/migrations/2026-10-31_jr_review_notes.sql;
+// kept so the console also works against a database where that migration is not applied yet).
 export function MatchNotes({ id, notes, fpReason }: { id: string; notes: string | null; fpReason?: FpReason | null }) {
   const router = useRouter();
   const saved = notes ?? "";

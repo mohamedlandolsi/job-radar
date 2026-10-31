@@ -173,6 +173,24 @@ export const PIPELINE_STATUSES: Record<PipelineTab, MatchStatus[]> = {
   not_a_fit: ["false_positive"],
 };
 
+export const PIPELINE_TABS = Object.keys(PIPELINE_STATUSES) as PipelineTab[];
+
+// Tab counts for /pipeline (one grouped query, rolled up per tab).
+export async function getPipelineCounts(): Promise<Record<PipelineTab, number>> {
+  await requireSession();
+  const rows = (await sql`
+    select status, count(*)::int as n
+    from jr_matches
+    where status <> 'new'
+    group by status`) as { status: MatchStatus; n: number }[];
+  const out = Object.fromEntries(PIPELINE_TABS.map((t) => [t, 0])) as Record<PipelineTab, number>;
+  for (const r of rows) {
+    const tab = PIPELINE_TABS.find((t) => PIPELINE_STATUSES[t].includes(r.status));
+    if (tab) out[tab] += r.n;
+  }
+  return out;
+}
+
 // Pipeline tabs. Shortlist: best score first; the others: most recently reviewed or applied first.
 export async function getPipeline(tab: PipelineTab): Promise<MatchCard[]> {
   await requireSession();

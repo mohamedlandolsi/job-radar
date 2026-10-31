@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { requireSession } from "@/lib/session";
-import { getMatch, type MatchDetail } from "@/lib/radar";
+import { getMatch, PIPELINE_TABS, type MatchDetail, type PipelineTab } from "@/lib/radar";
 import { httpUrl, timeAgo } from "@/lib/format";
 import { ageLabel, visaInfo, workModeLabel, yearsLabel } from "@/lib/match-display";
 import { FP_REASONS } from "@/lib/reasons";
@@ -68,8 +68,18 @@ function Attributes({ m }: { m: MatchDetail }) {
   );
 }
 
-export default async function MatchPage({ params }: PageProps<"/m/[id]">) {
+// Back link: "?from=pipeline&tab=..." (set by Pipeline cards) returns to that tab; anything else goes to Today.
+function backLink(sp: Record<string, string | string[] | undefined>): { href: string; label: string } {
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  if (one(sp.from) !== "pipeline") return { href: "/", label: "Today" };
+  const tab = one(sp.tab);
+  const valid = PIPELINE_TABS.includes(tab as PipelineTab) ? (tab as PipelineTab) : "shortlist";
+  return { href: valid === "shortlist" ? "/pipeline" : `/pipeline?tab=${valid}`, label: "Pipeline" };
+}
+
+export default async function MatchPage({ params, searchParams }: PageProps<"/m/[id]">) {
   await requireSession();
+  const back = backLink(await searchParams);
   const data = await getMatch((await params).id);
   if (!data) notFound();
   const { match: m, events } = data;
@@ -80,9 +90,9 @@ export default async function MatchPage({ params }: PageProps<"/m/[id]">) {
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
-      <Link href="/" className="inline-flex h-9 items-center gap-1 text-[0.8125rem] font-medium text-muted-foreground hover:text-foreground">
+      <Link href={back.href} className="inline-flex h-9 items-center gap-1 text-[0.8125rem] font-medium text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" aria-hidden />
-        Today
+        {back.label}
       </Link>
 
       <header className="space-y-3">
