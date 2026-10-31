@@ -12,6 +12,11 @@ const KNOWN: [prefix: string, title: string][] = [
   ["unknown_flag", "The database does not know that flag"],
   ["note_too_long", "The note can be 500 characters at most"],
   ["not_found", "This item no longer exists"],
+  ["rev_exists", "That rev was used before, pick a new one"],
+  ["rev_unchanged", "Change the rev before saving"],
+  ["missing_key", "The config is missing a required section"],
+  ["sources", "A source setting is not valid"],
+  ["invalid_json", "The config is not valid JSON"],
   ["invalid_input", "Some fields are too long or missing"],
 ];
 
