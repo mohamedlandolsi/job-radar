@@ -80,10 +80,36 @@ export async function getInbox(filter: InboxFilter = {}): Promise<MatchCard[]> {
            status, fp_reason, notes, posted_date, run_date, applied_at, reviewed_at, age_days::int as age_days
     from v_jr_inbox
     where (${kind}::text is null or kind = ${kind})
-      and (${mode}::text is null or work_mode = ${mode})
-      and (${source}::text is null or source = ${source})
+      and (${mode}::text is null or coalesce(work_mode, 'unknown') = ${mode})
+      and (${source}::text is null or coalesce(source, 'unknown') = ${source})
     order by priority desc, final_score desc nulls last, run_date desc`) as Row[];
   return withIso<MatchCard>(rows, CARD_DATES);
+}
+
+export type Count = { value: string; count: number };
+export type InboxCounts = { job: number; gig: number; modes: Count[]; sources: Count[] };
+
+// Today tab and chip counts. job/gig: all new matches; modes and sources: within `kind` when given (most first).
+export async function getInboxCounts(kind?: Kind): Promise<InboxCounts> {
+  await requireSession();
+  const rows = (await sql`
+    select kind, coalesce(work_mode, 'unknown') as work_mode, coalesce(source, 'unknown') as source, count(*)::int as n
+    from v_jr_inbox
+    group by 1, 2, 3`) as { kind: Kind; work_mode: string; source: string; n: number }[];
+  const out: InboxCounts = { job: 0, gig: 0, modes: [], sources: [] };
+  const modes = new Map<string, number>();
+  const sources = new Map<string, number>();
+  for (const r of rows) {
+    if (r.kind === "job" || r.kind === "gig") out[r.kind] += r.n;
+    if (kind && r.kind !== kind) continue;
+    modes.set(r.work_mode, (modes.get(r.work_mode) ?? 0) + r.n);
+    sources.set(r.source, (sources.get(r.source) ?? 0) + r.n);
+  }
+  const sorted = (m: Map<string, number>): Count[] =>
+    [...m].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+  out.modes = sorted(modes);
+  out.sources = sorted(sources);
+  return out;
 }
 
 export type MatchDetail = MatchCard & {

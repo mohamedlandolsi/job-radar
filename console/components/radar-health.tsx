@@ -1,20 +1,8 @@
 import { Pause, TriangleAlert } from "lucide-react";
-import { sql } from "@/lib/db";
+import { getHealth } from "@/lib/radar";
 import { requireSession } from "@/lib/session";
 import { formatAge } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-type Health = {
-  last_run_id: number | null;
-  last_status: string | null;
-  last_started_at: Date | null;
-  age_seconds: number | null;
-  last_run_rev: string | null;
-  config_rev: string | null;
-  rev_current: boolean | null;
-  paused: boolean | null;
-  awaiting_review: number;
-};
 
 const STALE_SECONDS = 36 * 3600;
 
@@ -22,11 +10,7 @@ const STALE_SECONDS = 36 * 3600;
 // Red with an icon when there is no run yet, the last run failed, or it is older than 36 hours.
 export async function RadarHealth() {
   await requireSession();
-  const rows = (await sql`
-    select last_run_id::int as last_run_id, last_status, last_started_at, age_seconds, last_run_rev,
-           config_rev, rev_current, paused, awaiting_review
-    from v_jr_health`) as Health[];
-  const h = rows[0];
+  const h = await getHealth();
   const paused = h?.paused === true;
 
   if (!h || h.last_run_id === null || h.age_seconds === null) {
@@ -43,13 +27,12 @@ export async function RadarHealth() {
   const stale = h.age_seconds > STALE_SECONDS;
   const red = failed || stale;
   const running = h.last_status === "running";
-  const started = h.last_started_at ? new Date(h.last_started_at).toISOString() : "unknown";
   const revNote = h.rev_current === false ? `rev ${h.config_rev} applies next run` : `rev ${h.last_run_rev}`;
 
   return (
     <span
       className="flex min-w-0 items-center gap-2 text-[0.8125rem] whitespace-nowrap"
-      title={`Run ${h.last_run_id} (${h.last_status}), started ${started}, ${revNote}`}
+      title={`Run ${h.last_run_id} (${h.last_status}), started ${h.last_started_at ?? "unknown"}, ${revNote}`}
     >
       <span className={cn("tabular flex items-center gap-1", red ? "font-medium text-danger" : "text-ink-3")}>
         {red ? <TriangleAlert className="size-3.5" aria-hidden /> : null}
