@@ -62,3 +62,18 @@ export const STAGE_LABEL: Record<string, string> = {
   llm_failed: "LLM failed, retry",
   matched: "Matched",
 };
+
+// Why a match was marked "Not a fit" (jr_matches.fp_reason; same 11 codes as jr_review and v_jr_fp_levers).
+export const FP_REASONS: Record<string, string> = {
+  seniority: "Too senior",
+  experience: "Needs more experience",
+  location: "Location or region does not work",
+  work_mode: "Work mode does not work",
+  language: "Needs a language I do not have",
+  visa: "No visa sponsorship",
+  skills: "Skills do not fit",
+  role_type: "Wrong kind of role",
+  duplicate: "Duplicate of another match",
+  stale: "Too old or already closed",
+  other: "Other (see notes)",
+};

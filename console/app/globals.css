@@ -60,6 +60,12 @@
   --color-meter-track: var(--meter-track);
   --color-meter-fill: var(--meter-fill);
   --color-meter-tick: var(--meter-tick);
+
+  /* Job Radar tokens: offer, kind chips, priority star (other match statuses reuse --state-*) */
+  --color-match-offer: var(--match-offer);           --color-match-offer-tint: var(--match-offer-tint);
+  --color-kind-job: var(--kind-job);                 --color-kind-job-tint: var(--kind-job-tint);
+  --color-kind-gig: var(--kind-gig);                 --color-kind-gig-tint: var(--kind-gig-tint);
+  --color-star: var(--star);
 }
 
 :root {
@@ -100,6 +106,12 @@
   --meter-track: #E3E5E0;
   --meter-fill: #16191D;
   --meter-tick: #8D939B;
+
+  /* Job Radar (text on tint >= 4.5:1; star is an icon, >= 3:1 on card) */
+  --match-offer: #0B6B57;      --match-offer-tint: #DCF2EA;
+  --kind-job: #3E4C5E;         --kind-job-tint: #E5EAF0;
+  --kind-gig: #0D6A70;         --kind-gig-tint: #DCF0F1;
+  --star: #B26B00;
 
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -150,6 +162,11 @@
   --meter-track: #343A41;
   --meter-fill: #E8EBEE;
   --meter-tick: #6B727B;
+
+  --match-offer: #74D9BC;      --match-offer-tint: #15332C;
+  --kind-job: #B3C0CF;         --kind-job-tint: #2A323C;
+  --kind-gig: #7CD3D8;         --kind-gig-tint: #163437;
+  --star: #F0BE5F;
 
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
