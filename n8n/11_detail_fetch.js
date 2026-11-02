@@ -54,7 +54,7 @@ for (const j of need) {
         j.employment_type = e.includes('intern') ? 'internship' : e.includes('contract') ? 'contract' : e.includes('part') ? 'part_time'
           : e.includes('full') ? 'full_time' : e.includes('temporary') ? 'contract' : 'unknown';
       }
-      await sleep(2000);
+      await sleep(5000 + Math.floor(Math.random() * 3000));
     } else if (j.detail.mode === 'jina') {
       const headers = { 'Accept': 'application/json', 'X-Timeout': '25', 'X-Return-Format': 'markdown' };
       if (JINA_KEY) headers.Authorization = 'Bearer ' + JINA_KEY;

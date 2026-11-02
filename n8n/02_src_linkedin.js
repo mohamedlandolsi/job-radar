@@ -1,6 +1,7 @@
 // Job Radar v2 | Src LinkedIn (Code, run once for all items)
 // LinkedIn public guest endpoint (no login, no cookies, $0). The laptop's residential IP is the
-// reason this works: keep it to <= 20 list requests a run (enforced in jr_validate_config).
+// reason this works: keep it to <= 20 list requests a run (enforced in jr_validate_config and here),
+// 8-12 s apart. The first 429/999 of a run waits 60 s and retries that request once; a second one stops.
 // Descriptions are fetched later by "Detail Fetch", only for postings that survive gate A and dedupe.
 const SOURCE = 'linkedin';
 const L = $('Load Config').first().json;
@@ -17,15 +18,42 @@ const strip = s => decode(String(s || '').replace(/<[^>]*>/g, ' ')).replace(/\s+
 const pick = (html, re) => { const m = html.match(re); return m ? strip(m[1]) : ''; };
 
 const windowSec = Math.max(1, Math.min(30, Number(L.config.freshness.window_days) || 7)) * 86400;
+const MAX_REQUESTS = 20;
+const maxPages = Math.min(3, Number(S.max_pages) || 1);
+const planned = Math.min(MAX_REQUESTS, (S.searches || []).length * maxPages);
 const out = [];
 const seen = new Set();
-let requests = 0, blocked = false, lastError = '';
+let requests = 0, ok = 0, retried = false, stopped = '', lastError = '';
+
+// One list request, paced 8-12 s after the previous one. Returns the HTML, or null on failure.
+const listRequest = async (url) => {
+  if (requests) await sleep(8000 + Math.floor(Math.random() * 4000));
+  for (;;) {
+    requests++;
+    try {
+      const html = String(await this.helpers.httpRequest({
+        method: 'GET', url,
+        headers: { 'User-Agent': UA, 'Accept-Language': 'en-US,en;q=0.9', 'Accept': 'text/html' },
+        json: false, timeout: 20000
+      }));
+      ok++;
+      return html;
+    } catch (e) {
+      const msg = String(e.message || e).slice(0, 160);
+      const status = (String(e.httpCode || e.statusCode || '') + ' ' + msg).match(/\b(429|999|403)\b/);
+      if (status && status[1] !== '403' && !retried && requests < MAX_REQUESTS) { retried = true; await sleep(60000); continue; }
+      lastError = msg;
+      if (status) stopped = status[1];   // LinkedIn throttled this IP: stop for today
+      return null;
+    }
+  }
+};
 
 for (const s of (S.searches || [])) {
-  if (blocked) break;
+  if (stopped || requests >= MAX_REQUESTS) break;
   const modes = (s.work_types || []).filter(w => WT[w]);
   const mode = modes.length === 1 ? modes[0] : 'unknown';
-  for (let page = 0; page < Math.min(3, Number(S.max_pages) || 1); page++) {
+  for (let page = 0; page < maxPages && requests < MAX_REQUESTS; page++) {
     // Built by hand: the n8n Code-node sandbox has no URLSearchParams.
     const params = [['keywords', s.keywords], ['location', s.location || 'Worldwide'], ['f_TPR', 'r' + windowSec],
                     ['sortBy', 'DD'], ['start', String(page * 10)]];
@@ -33,20 +61,8 @@ for (const s of (S.searches || [])) {
     const exps = (s.experience || []).map(e => EXP[e]).filter(Boolean);
     if (exps.length) params.push(['f_E', exps.join(',')]);
     const qs = params.map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
-    let html = '';
-    try {
-      requests++;
-      html = String(await this.helpers.httpRequest({
-        method: 'GET',
-        url: 'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?' + qs,
-        headers: { 'User-Agent': UA, 'Accept-Language': 'en-US,en;q=0.9', 'Accept': 'text/html' },
-        json: false, timeout: 20000
-      }));
-    } catch (e) {
-      lastError = String(e.message || e).slice(0, 160);
-      if (/429|999|403/.test(lastError)) blocked = true;   // LinkedIn throttled this IP: stop for today
-      break;
-    }
+    const html = await listRequest('https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?' + qs);
+    if (html === null) break;
     const cards = html.split(/<li[\s>]/).slice(1);
     if (!cards.length) break;
     for (const c of cards) {
@@ -70,11 +86,13 @@ for (const s of (S.searches || [])) {
       } });
     }
     if (cards.length < 10) break;
-    await sleep(2500);
   }
-  await sleep(2500);
 }
 
+if (stopped) {
+  const err = { json: { source: SOURCE, __error: SOURCE + ': partial after ' + ok + ' of ' + planned + ' requests, ' + stopped } };
+  return out.length ? [...out, err] : [err];
+}
 if (!out.length) {
   return [{ json: { source: SOURCE, __error: SOURCE + ': ' + (lastError || 'no cards parsed (' + requests + ' requests): markup changed or no results') } }];
 }

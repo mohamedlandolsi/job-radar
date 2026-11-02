@@ -58,30 +58,44 @@ const seniorityOf = t => {
   return m ? m[1].toLowerCase().replace(/\s+/g, '-') : '';
 };
 
+const fetchMd = async (listUrl, h) => {
+  const res = await this.helpers.httpRequest({ method: 'GET', url: 'https://r.jina.ai/' + listUrl, headers: h, json: true, timeout: 45000 });
+  return typeof res === 'string' ? res : String((res && res.data && res.data.content) || (res && res.content) || '');
+};
+// Markdown links whose href matches the board's job_url_regex, in page order.
+const jobLinks = (md, urlRe) => {
+  const linkRe = /\[((?:[^\[\]]|\[[^\]]*\])*)\]\((https?:\/\/[^)\s]+)(?:\s+"[^"]*")?\)/g;
+  const found = [];
+  let m;
+  while ((m = linkRe.exec(md)) !== null) {
+    const href = m[2].replace(/[.,;]+$/, '');
+    if (urlRe.test(href)) found.push({ text: m[1], href, start: m.index, end: linkRe.lastIndex });
+  }
+  return found;
+};
+// A page with no job links is often a stale cache or a fast-engine render before the list loaded:
+// retry it once, uncached and in the headless browser.
+const RETRY_HEADERS = Object.assign({}, headers, { 'X-No-Cache': 'true', 'X-Engine': 'browser' });
+
 const out = [];
 for (const b of boards) {
   let urlRe;
   try { urlRe = new RegExp('^(?:' + b.job_url_regex + ')', 'i'); }
   catch (e) { out.push({ json: { source: b.key, __error: b.key + ': bad job_url_regex (' + e.message + ')' } }); continue; }
   const seenUrl = new Set();
-  let pages = 0, fails = 0, links = 0, lastErr = '';
+  let pages = 0, fails = 0, links = 0, emptyRetries = 0, lastErr = '';
   for (const listUrl of (b.list_urls || [])) {
     if (out.filter(i => i.json.source === b.key && i.json.url).length >= b.max_items) break;
     let md = '';
-    try {
-      const res = await this.helpers.httpRequest({ method: 'GET', url: 'https://r.jina.ai/' + listUrl, headers, json: true, timeout: 45000 });
-      md = typeof res === 'string' ? res : String((res && res.data && res.data.content) || (res && res.content) || '');
-      pages++;
-    } catch (e) { fails++; lastErr = String(e.message || e).slice(0, 140); await sleep(PACE); continue; }
-    const linkRe = /\[((?:[^\[\]]|\[[^\]]*\])*)\]\((https?:\/\/[^)\s]+)(?:\s+"[^"]*")?\)/g;
-    const found = [];
-    let m;
-    while ((m = linkRe.exec(md)) !== null) {
-      const href = m[2].replace(/[.,;]+$/, '');
-      if (!urlRe.test(href)) continue;
-      links++;
-      found.push({ text: m[1], href, start: m.index, end: linkRe.lastIndex });
+    try { md = await fetchMd(listUrl, headers); pages++; }
+    catch (e) { fails++; lastErr = String(e.message || e).slice(0, 140); await sleep(PACE); continue; }
+    let found = jobLinks(md, urlRe);
+    if (!found.length) {
+      await sleep(PACE);
+      try { md = await fetchMd(listUrl, RETRY_HEADERS); found = jobLinks(md, urlRe); } catch (e) { found = []; }
+      if (!found.length) emptyRetries++;
     }
+    links += found.length;
     for (let i = 0; i < found.length; i++) {
       const f = found[i];
       const url = f.href.split('#')[0];
@@ -114,7 +128,8 @@ for (const b of boards) {
   }
   if (!seenUrl.size) {
     out.push({ json: { source: b.key, __error: b.key + ': ' + (fails ? 'fetch failed on ' + fails + ' page(s): ' + lastErr
-      : 'parser_no_links (' + pages + ' page(s), regex matched ' + links + ' links): fix job_url_regex in the console') } });
+      : 'parser_no_links (' + pages + ' page(s)' + (emptyRetries ? ', ' + emptyRetries + ' empty again on uncached browser retry' : '')
+        + ', regex matched ' + links + ' links): fix job_url_regex in the console') } });
   }
 }
 return out;
